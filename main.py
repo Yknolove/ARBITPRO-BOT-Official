@@ -11,9 +11,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from config.config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_URL
 from config.db import engine, Base
-from handlers.default import router
-from services.aggregator import start_aggregator
-from services.filter_engine import filter_and_notify
+from handlers.default import router, menu_registry, version_menu
+from services.aggregator import start_aggregator, filter_and_notify
 from utils.logger import logger
 
 # Инициализация бота
@@ -21,24 +20,22 @@ bot = Bot(
     token=API_TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
 )
-# Диспетчер с поддержкой FSM
 dp = Dispatcher(storage=MemoryStorage())
-# Регистрируем маршруты из handlers/default.py
 dp.include_router(router)
 
 async def init_db():
-    """Создает таблицы в базе при старте."""
+    """Создает таблицы при старте."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 async def set_commands():
-    """Устанавливает команды бота, видимые в интерфейсе Telegram."""
+    """Регистрирует команды в Telegram UI."""
     await bot.set_my_commands([
-        BotCommand(command="start", description="Запустить бота"),
+        BotCommand("start", "Запустить бота"),
     ])
 
 async def keep_awake():
-    """Регулярно пингует /ping, чтобы инстанс не засыпал."""
+    """Пингует свой /ping, чтобы инстанс не засыпал."""
     await asyncio.sleep(5)
     url = WEBHOOK_URL + "/ping"
     session = aiohttp.ClientSession()
@@ -53,26 +50,37 @@ async def keep_awake():
         await session.close()
         raise
 
+async def refresh_menus():
+    """Обновляет главное меню каждые 30 секунд."""
+    await asyncio.sleep(10)
+    while True:
+        for chat_id, msg_id in list(menu_registry.items()):
+            try:
+                await bot.edit_message_reply_markup(
+                    chat_id=chat_id,
+                    message_id=msg_id,
+                    reply_markup=version_menu()
+                )
+            except Exception:
+                menu_registry.pop(chat_id, None)
+        await asyncio.sleep(30)
+
 async def on_startup():
     await init_db()
     await set_commands()
     await bot.set_webhook(WEBHOOK_URL + WEBHOOK_PATH)
     logger.info(f"Webhook set to {WEBHOOK_URL + WEBHOOK_PATH}")
-    # Запускаем фоновый агрегатор
     asyncio.create_task(start_aggregator(filter_and_notify))
-    # Запускаем self-ping, чтобы инстанс не засыпал
     asyncio.create_task(keep_awake())
+    asyncio.create_task(refresh_menus())
 
 async def on_shutdown():
     await bot.delete_webhook()
     await bot.session.close()
 
-# Создаем aiohttp-приложение и регистрируем обработчики
 app = web.Application()
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-# Endpoint для пинга
-app.router.add_get("/ping", lambda request: web.Response(text="OK"))
-# Хуки старта и остановки
+app.router.add_get("/ping", lambda req: web.Response(text="OK"))
 app.on_startup.append(lambda _: on_startup())
 app.on_shutdown.append(lambda _: on_shutdown())
 
