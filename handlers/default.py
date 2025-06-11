@@ -1,6 +1,6 @@
 from aiogram import Router, types
 from aiogram.filters.command import Command
-from aiogram.filters.text import Text
+from aiogram.fsm.state import State
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
@@ -41,7 +41,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer("👋 Добро пожаловать в ArbitPRO! Выберите опцию:", reply_markup=MAIN_KB)
 
-@router.message(Text(equals="⚙️ Настройки"))
+@router.message(lambda message: message.text == "⚙️ Настройки")
 async def show_settings(message: types.Message, state: FSMContext):
     await state.clear()
     async with AsyncSessionLocal() as session:
@@ -51,7 +51,7 @@ async def show_settings(message: types.Message, state: FSMContext):
         reply_markup=MAIN_KB
     )
 
-@router.message(Text(equals="🏷 Установить биржу"))
+@router.message(lambda message: message.text == "🏷 Установить биржу")
 async def set_exchange_start(message: types.Message, state: FSMContext):
     await state.set_state(BotStates.exchange)
     await message.answer("Введите биржу (binance, bybit или bitget):", reply_markup=ReplyKeyboardRemove())
@@ -68,7 +68,7 @@ async def process_exchange(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(f"✅ Биржа установлена: {exch}", reply_markup=MAIN_KB)
 
-@router.message(Text(equals="📈 BUY"))
+@router.message(lambda message: message.text == "📈 BUY")
 async def set_buy_start(message: types.Message, state: FSMContext):
     await state.set_state(BotStates.buy)
     await message.answer("Введите BUY-порог (число), например: 41.20", reply_markup=ReplyKeyboardRemove())
@@ -86,7 +86,7 @@ async def process_buy(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(f"✅ BUY-порог установлен: ≤ {val}", reply_markup=MAIN_KB)
 
-@router.message(Text(equals="📉 SELL"))
+@router.message(lambda message: message.text == "📉 SELL")
 async def set_sell_start(message: types.Message, state: FSMContext):
     await state.set_state(BotStates.sell)
     await message.answer("Введите SELL-порог (число), например: 42.50", reply_markup=ReplyKeyboardRemove())
@@ -104,13 +104,10 @@ async def process_sell(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(f"✅ SELL-порог установлен: ≥ {val}", reply_markup=MAIN_KB)
 
-@router.message(Text(equals="🧮 Калькулятор"))
+@router.message(lambda message: message.text == "🧮 Калькулятор")
 async def set_calc_start(message: types.Message, state: FSMContext):
     await state.set_state(BotStates.calc)
-    await message.answer(
-        "Введите: сумма buy_price sell_price, например: 100 41.20 42.50",
-        reply_markup=ReplyKeyboardRemove()
-    )
+    await message.answer("Введите: сумма buy_price sell_price, например: 100 41.20 42.50", reply_markup=ReplyKeyboardRemove())
 
 @router.message(BotStates.calc)
 async def process_calc(message: types.Message, state: FSMContext):
@@ -125,10 +122,10 @@ async def process_calc(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(f"💰 Прибыль: {profit:.2f}₴", reply_markup=MAIN_KB)
 
-@router.message(Text(equals="📜 История"))
+@router.message(lambda message: message.text == "📜 История")
 async def text_history(message: types.Message):
     await message.answer("🕑 История сделок: (заглушка)", reply_markup=MAIN_KB)
 
-@router.message(Text(equals="🔥 Топ-сделки"))
+@router.message(lambda message: message.text == "🔥 Топ-сделки")
 async def text_top(message: types.Message):
     await message.answer("🏆 Топ-сделки: (заглушка)", reply_markup=MAIN_KB)
