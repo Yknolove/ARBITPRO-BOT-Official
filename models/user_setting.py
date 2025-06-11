@@ -1,30 +1,11 @@
-import aiohttp
+from sqlalchemy import Column, Integer, String, Float
+from config.db import Base
 
-async def keep_awake():
-    """Регулярно пингует собственный /ping, чтобы инстанс не засыпал."""
-    # Дадим время на инициализацию бота
-    await asyncio.sleep(5)
-    url = WEBHOOK_URL + "/ping"
-    session = aiohttp.ClientSession()
-    try:
-        while True:
-            try:
-                await session.get(url)
-            except Exception:
-                pass
-            # Пинг каждые 30 секунд
-            await asyncio.sleep(30)
-    except asyncio.CancelledError:
-        # При отмене таска корректно закрываем сессию
-        await session.close()
-        raise
+class UserSetting(Base):
+    __tablename__ = "user_settings"
 
-# Внутри on_startup() добавляем после старта агрегатора:
-async def on_startup():
-    await init_db()
-    await set_commands()
-    await bot.set_webhook(WEBHOOK_URL + WEBHOOK_PATH)
-    logger.info(f"Webhook set to {WEBHOOK_URL + WEBHOOK_PATH}")
-    asyncio.create_task(start_aggregator(filter_and_notify))
-    # Запускаем keep_awake
-    asyncio.create_task(keep_awake())
+    user_id = Column(Integer, primary_key=True, index=True)
+    exchange = Column(String, nullable=False, default="binance")
+    buy_threshold = Column(Float, nullable=True)
+    sell_threshold = Column(Float, nullable=True)
+    volume_limit = Column(Float, nullable=True)
