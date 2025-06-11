@@ -1,5 +1,6 @@
 from aiogram import Router, types
-from aiogram.filters import Command, Text
+from aiogram.filters.command import Command
+from aiogram.filters.text import Text
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
@@ -47,7 +48,6 @@ async def cmd_start(message: types.Message):
 
 @router.message(Text(equals="⚙️ Настройки"))
 async def text_settings(message: types.Message):
-    # Показываем текущие пороги
     async with AsyncSessionLocal() as session:
         setting = await get_or_create_setting(session, message.from_user.id)
     await message.answer(
@@ -97,7 +97,6 @@ async def calc_input(message: types.Message, state: FSMContext):
 
 @router.message(Text(equals="📜 История"))
 async def text_history(message: types.Message):
-    # Здесь вы впоследствии будете вытаскивать реальные записи из БД
     await message.answer(
         "🕑 История сделок:\n(заглушка, пока нет данных)",
         reply_markup=MAIN_KB
@@ -105,7 +104,6 @@ async def text_history(message: types.Message):
 
 @router.message(Text(equals="🔥 Топ-сделки"))
 async def text_top(message: types.Message):
-    # Позже заменим на список лучших сделок из архива
     await message.answer(
         "🏆 Топ-сделки за сегодня:\n(заглушка, пока нет данных)",
         reply_markup=MAIN_KB
