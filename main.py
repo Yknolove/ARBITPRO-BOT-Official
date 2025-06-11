@@ -11,11 +11,11 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from config.config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_URL
 from config.db import engine, Base
 from handlers.default import router as default_router
-from services.aggregator import start_aggregator
+from services.aggregator import start_aggregator, fetch_current_arbitrage
 from services.filter_engine import filter_and_notify
 from utils.logger import logger
 
-# Инициализируем бот с HTML-парсингом
+# Инициализируем бота с HTML-парсингом
 bot = Bot(
     token=API_TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
@@ -59,7 +59,13 @@ async def on_shutdown():
 
 # Составляем aiohttp-приложение
 app = web.Application()
+
+# Регистрируем webhook handler
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+
+# Добавляем /ping для heartbeat
+app.router.add_get("/ping", lambda request: web.Response(text="OK"))
+
 app.on_startup.append(lambda _: on_startup())
 app.on_shutdown.append(lambda _: on_shutdown())
 
