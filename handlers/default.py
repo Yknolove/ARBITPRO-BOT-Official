@@ -129,3 +129,4 @@ async def text_history(message: types.Message):
 @router.message(lambda message: message.text == "🔥 Топ-сделки")
 async def text_top(message: types.Message):
     await message.answer("🏆 Топ-сделки: (заглушка)", reply_markup=MAIN_KB)
+
