@@ -148,4 +148,3 @@ async def process_volume(message: Message, state: FSMContext):
         await session.commit()
     await state.clear()
     await message.answer(f"✅ Объём ≤ ${val}", reply_markup=free_menu())
-
