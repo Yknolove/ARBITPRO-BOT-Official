@@ -1,11 +1,12 @@
 from aiogram import Router, types
 from aiogram.filters.command import Command
+from aiogram.filters.state import StateFilter
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     ReplyKeyboardMarkup,
     KeyboardButton,
-    ReplyKeyboardRemove,
+    ReplyKeyboardRemove
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,7 +32,7 @@ MAIN_KB = ReplyKeyboardMarkup(
         ],
     ],
     resize_keyboard=True,
-    one_time_keyboard=False,
+    one_time_keyboard=False
 )
 
 async def get_or_create_setting(session: AsyncSession, user_id: int) -> UserSetting:
@@ -59,8 +60,7 @@ async def text_settings(message: types.Message):
         "📊 Текущие настройки:\n"
         f"• Биржа: <b>{setting.exchange}</b>\n"
         f"• Buy ≤ <b>{setting.buy_threshold or '—'}</b>\n"
-        f"• Sell ≥ <b>{setting.sell_threshold or '—'}</b>\n\n"
-        "Чтобы изменить пороги, используйте кнопки Калькулятора или введённые команды.",
+        f"• Sell ≥ <b>{setting.sell_threshold or '—'}</b>",
         parse_mode="HTML",
         reply_markup=MAIN_KB
     )
@@ -75,12 +75,12 @@ async def text_calculator(message: types.Message, state: FSMContext):
     )
     await state.set_state(CalcStates.waiting_input)
 
-@router.message(lambda message: state := message.text and state, state=CalcStates.waiting_input)
+@router.message(StateFilter(CalcStates.waiting_input))
 async def calc_input(message: types.Message, state: FSMContext):
     parts = message.text.split()
     if len(parts) != 3:
         return await message.answer(
-            "Неверный формат. Введите три числа, например: 100 41.20 42.50",
+            "Неверный формат. Введите три числа через пробел, например: 100 41.20 42.50",
             reply_markup=ReplyKeyboardRemove()
         )
     try:
