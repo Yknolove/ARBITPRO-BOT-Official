@@ -1,156 +1,50 @@
-from aiogram import Router, types
-from aiogram.filters.command import Command
-from aiogram.types import (
-    InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
-)
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.context import FSMContext
-from sqlalchemy.ext.asyncio import AsyncSession
+import asyncio
+import aiohttp
+from utils.logger import logger
 
-from config.db import AsyncSessionLocal
-from models.user_setting import UserSetting
-from services.aggregator import fetch_current_arbitrage  # нужно реализовать или stub
+async def fetch_p2p_rates() -> dict:
+    """
+    Запрашивает P2P-курсы с бирж и возвращает словарь:
+    {"binance": {"buy": ..., "sell": ...}, ...}
+    """
+    async with aiohttp.ClientSession() as session:
+        url = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"
+        payload = {"asset": "USDT", "fiat": "UAH", "tradeType": "BUY", "merchantCheck": False, "page": 1, "rows": 1}
+        headers = {"Content-Type": "application/json"}
 
-router = Router()
+        # BUY price
+        async with session.post(url, json=payload, headers=headers) as resp_buy:
+            data_buy = await resp_buy.json()
+            buy_price = float(data_buy["data"][0]["adv"]["price"])
 
-# FSM-состояния
-class SettingsStates(StatesGroup):
-    exchange = State()
-    buy = State()
-    sell = State()
+        # SELL price
+        payload["tradeType"] = "SELL"
+        async with session.post(url, json=payload, headers=headers) as resp_sell:
+            data_sell = await resp_sell.json()
+            sell_price = float(data_sell["data"][0]["adv"]["price"])
 
-class CalcStates(StatesGroup):
-    calc = State()
+    # Возвращаем stub для других бирж или дополнить
+    return {
+        "binance": {"buy": buy_price, "sell": sell_price},
+        "bybit": {"buy": 41.30, "sell": 42.00},
+        "bitget": {"buy": 41.40, "sell": 42.05},
+    }
 
-# Меню
-def main_menu():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⚙️ Настройки", callback_data="menu:settings"),
-         InlineKeyboardButton(text="🧮 Калькулятор", callback_data="menu:calc")],
-        [InlineKeyboardButton(text="📊 Связки", callback_data="menu:arbitrage"),
-         InlineKeyboardButton(text="📜 История", callback_data="menu:history")],
-        [InlineKeyboardButton(text="🔥 Топ", callback_data="menu:top")],
-    ])
+async def fetch_current_arbitrage() -> dict:
+    """Обёртка над fetch_p2p_rates для меню арбитража"""
+    rates = await fetch_p2p_rates()
+    return rates
 
-def settings_menu():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🏷 Биржа", callback_data="settings:exchange"),
-         InlineKeyboardButton(text="📈 BUY", callback_data="settings:buy")],
-        [InlineKeyboardButton(text="📉 SELL", callback_data="settings:sell"),
-         InlineKeyboardButton(text="🔙 Назад", callback_data="menu:main")],
-    ])
+async def start_aggregator(publish_callback):
+    """Основной цикл агрегатора: каждую минуту проверяет курсы и вызывает publish_callback"""
+    while True:
+        try:
+            rates = await fetch_p2p_rates()
+            logger.info(f"Fetched rates: {rates}")
+            result = publish_callback(rates)
+            if asyncio.iscoroutine(result):
+                await result
+        except Exception as e:
+            logger.error(f"Aggregator error: {e}")
+        await asyncio.sleep(10)
 
-# Другие подменю
-def arbitrage_menu():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔄 Обновить", callback_data="arbitrage:refresh"),
-         InlineKeyboardButton(text="🔙 Назад", callback_data="menu:main")],
-    ])
-
-stubs_menu = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🔙 Назад", callback_data="menu:main")]
-])
-
-async def get_or_create_setting(session: AsyncSession, user_id: int) -> UserSetting:
-    st = await session.get(UserSetting, user_id)
-    if not st:
-        st = UserSetting(user_id=user_id)
-        session.add(st)
-        await session.commit()
-        await session.refresh(st)
-    return st
-
-# Обработчики
-@router.message(Command("start"))
-async def cmd_start(message: Message):
-    await message.answer("👋 Добро пожаловать в ArbitPRO!", reply_markup=main_menu())
-
-@router.callback_query(lambda c: c.data.startswith("menu:"))
-async def cb_main(c: CallbackQuery, state: FSMContext):
-    action = c.data.split(":")[1]
-    if action == "main":
-        await c.message.edit_text("Главное меню:", reply_markup=main_menu())
-    elif action == "settings":
-        await c.message.edit_text("Настройки:", reply_markup=settings_menu())
-    elif action == "calc":
-        await c.message.edit_text(
-            "🧮 Калькулятор: введите amount buy_price sell_price",
-            reply_markup=None
-        )
-        await state.set_state(CalcStates.calc)
-    elif action == "arbitrage":
-        rates = await fetch_current_arbitrage()
-        text = "\n".join(
-            f"{exch.title()}: buy {r['buy']} sell {r['sell']}" for exch, r in rates.items()
-        )
-        await c.message.edit_text(text or "Нет данных", reply_markup=arbitrage_menu())
-    elif action == "history":
-        await c.message.edit_text("📜 История: заглушка", reply_markup=stubs_menu)
-    elif action == "top":
-        await c.message.edit_text("🔥 Топ: заглушка", reply_markup=stubs_menu)
-    await c.answer()
-
-@router.callback_query(lambda c: c.data.startswith("settings:"))
-async def cb_settings(c: CallbackQuery, state: FSMContext):
-    action = c.data.split(":")[1]
-    if action == "exchange":
-        await c.message.edit_text("Введите биржу (binance, bybit, bitget):")
-        await state.set_state(SettingsStates.exchange)
-    elif action == "buy":
-        await c.message.edit_text("Введите BUY-порог (число):")
-        await state.set_state(SettingsStates.buy)
-    elif action == "sell":
-        await c.message.edit_text("Введите SELL-порог (число):")
-        await state.set_state(SettingsStates.sell)
-    await c.answer()
-
-@router.message(SettingsStates.exchange)
-async def process_exchange(message: Message, state: FSMContext):
-    exch = message.text.lower()
-    if exch not in ("binance","bybit","bitget"):
-        return await message.answer("Неверная биржа.")
-    async with AsyncSessionLocal() as session:
-        st = await get_or_create_setting(session, message.from_user.id)
-        st.exchange = exch
-        await session.commit()
-    await state.clear()
-    await message.answer(f"✅ Биржа: {exch}", reply_markup=main_menu())
-
-@router.message(SettingsStates.buy)
-async def process_buy(message: Message, state: FSMContext):
-    try:
-        val = float(message.text)
-    except:
-        return await message.answer("Не число.")
-    async with AsyncSessionLocal() as session:
-        st = await get_or_create_setting(session, message.from_user.id)
-        st.buy_threshold = val
-        await session.commit()
-    await state.clear()
-    await message.answer(f"✅ BUY ≤ {val}", reply_markup=main_menu())
-
-@router.message(SettingsStates.sell)
-async def process_sell(message: Message, state: FSMContext):
-    try:
-        val = float(message.text)
-    except:
-        return await message.answer("Не число.")
-    async with AsyncSessionLocal() as session:
-        st = await get_or_create_setting(session, message.from_user.id)
-        st.sell_threshold = val
-        await session.commit()
-    await state.clear()
-    await message.answer(f"✅ SELL ≥ {val}", reply_markup=main_menu())
-
-@router.message(CalcStates.calc)
-async def process_calc(message: Message, state: FSMContext):
-    parts = message.text.split()
-    if len(parts) != 3:
-        return await message.answer("Ошибка, три числа.", reply_markup=main_menu())
-    try:
-        amt, bp, sp = map(float, parts)
-    except:
-        return await message.answer("Не числа.", reply_markup=main_menu())
-    profit = amt * (sp - bp)
-    await state.clear()
-    await message.answer(f"💰 Прибыль: {profit:.2f}₴", reply_markup=main_menu())
