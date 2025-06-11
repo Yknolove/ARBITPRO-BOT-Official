@@ -10,9 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config.db import AsyncSessionLocal
 from models.user_setting import UserSetting
 
-# Инициализируем Router, чтобы main.py мог его импортировать
 router = Router()
 
+# FSM-состояния для Free версии настроек
 class FreeSettingsStates(StatesGroup):
     exchange = State()
     buy = State()
@@ -34,7 +34,7 @@ def free_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="📉 SELL", callback_data="free:sell")],
         [InlineKeyboardButton(text="🔢 Лимит", callback_data="free:volume")],
         [InlineKeyboardButton(text="📊 Показать настройки", callback_data="free:show")],
-        [InlineKeyboardButton(text="🔙 Вернуться", callback_data="version:main")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="version:main")],
     ])
 
 async def get_or_create_setting(session: AsyncSession, user_id: int) -> UserSetting:
@@ -49,11 +49,11 @@ async def get_or_create_setting(session: AsyncSession, user_id: int) -> UserSett
 @router.message(Command("start"))
 async def cmd_start(message: Message):
     text = (
-        "🆓 *Free Version* (Бесплатно):\n"
+        "🆓 *Free Version*\n"
         "• Мониторинг одной биржи P2P\n"
         "• Порог BUY и SELL\n"
         "• Лимит объёма сделки\n\n"
-        "💎 *Pro Version* (скоро): Расширенные функции"
+        "💎 *Pro Version*\nРасширенные функции"
     )
     await message.answer(text, parse_mode="Markdown", reply_markup=version_menu())
 
@@ -148,3 +148,4 @@ async def process_volume(message: Message, state: FSMContext):
         await session.commit()
     await state.clear()
     await message.answer(f"✅ Объём ≤ ${val}", reply_markup=free_menu())
+
