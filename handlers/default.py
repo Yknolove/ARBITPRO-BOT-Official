@@ -12,15 +12,22 @@ router = Router()
 MAIN_KB = ReplyKeyboardMarkup(
     keyboard=[
         [
-            KeyboardButton(text="/settings"),
             KeyboardButton(text="/start"),
+            KeyboardButton(text="/settings"),
         ],
     ],
     resize_keyboard=True,
     one_time_keyboard=False
 )
 
-# ... (get_setting остаётся без изменений) ...
+async def get_setting(session: AsyncSession, user_id: int) -> UserSetting:
+    setting = await session.get(UserSetting, user_id)
+    if not setting:
+        setting = UserSetting(user_id=user_id)
+        session.add(setting)
+        await session.commit()
+        await session.refresh(setting)
+    return setting
 
 @router.message(Command(commands=["start"]))
 async def cmd_start(message: types.Message):
@@ -33,5 +40,62 @@ async def cmd_start(message: types.Message):
 
 @router.message(Command(commands=["settings"]))
 async def cmd_settings(message: types.Message):
-    # ... код без изменений, но с reply_markup=MAIN_KB ...
+    async with AsyncSessionLocal() as session:
+        setting = await get_setting(session, message.from_user.id)
+
+    # Определяем text перед отправкой
+    text = (
+        "Текущие настройки:\n"
+        f"• Биржа: <b>{setting.exchange}</b>\n"
+        f"• Buy ≤ <b>{setting.buy_threshold or 'не задан'}</b>\n"
+        f"• Sell ≥ <b>{setting.sell_threshold or 'не задан'}</b>\n\n"
+        "Установить:\n"
+        "<code>/set_exchange binance</code> — выбрать биржу\n"
+        "<code>/set_buy 41.20</code> — задать порог покупки\n"
+        "<code>/set_sell 42.50</code> — задать порог продажи"
+    )
     await message.answer(text, reply_markup=MAIN_KB)
+
+@router.message(Command(commands=["set_exchange"]))
+async def cmd_set_exchange(message: types.Message, command: CommandObject):
+    exch = command.args.lower()
+    if exch not in ("binance", "bybit", "bitget"):
+        return await message.answer(
+            "Неверная биржа. Выберите: binance, bybit или bitget.",
+            reply_markup=MAIN_KB
+        )
+    async with AsyncSessionLocal() as session:
+        setting = await get_setting(session, message.from_user.id)
+        setting.exchange = exch
+        await session.commit()
+    await message.answer(f"Биржа установлена на <b>{exch}</b>.", reply_markup=MAIN_KB)
+
+@router.message(Command(commands=["set_buy"]))
+async def cmd_set_buy(message: types.Message, command: CommandObject):
+    try:
+        val = float(command.args)
+    except ValueError:
+        return await message.answer(
+            "Неверный формат цены. Например: /set_buy 41.20",
+            reply_markup=MAIN_KB
+        )
+    async with AsyncSessionLocal() as session:
+        setting = await get_setting(session, message.from_user.id)
+        setting.buy_threshold = val
+        await session.commit()
+    await message.answer(f"Порог покупки установлен: ≤ <b>{val}₴</b>.", reply_markup=MAIN_KB)
+
+@router.message(Command(commands=["set_sell"]))
+async def cmd_set_sell(message: types.Message, command: CommandObject):
+    try:
+        val = float(command.args)
+    except ValueError:
+        return await message.answer(
+            "Неверный формат цены. Например: /set_sell 42.50",
+            reply_markup=MAIN_KB
+        )
+    async with AsyncSessionLocal() as session:
+        setting = await get_setting(session, message.from_user.id)
+        setting.sell_threshold = val
+        await session.commit()
+    await message.answer(f"Порог продажи установлен: ≥ <b>{val}₴</b>.", reply_markup=MAIN_KB)
