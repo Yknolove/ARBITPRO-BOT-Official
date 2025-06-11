@@ -20,15 +20,15 @@ async def get_setting(session: AsyncSession, user_id: int):
 async def cmd_settings(message: types.Message):
     async with AsyncSessionLocal() as session:
         setting = await get_setting(session, message.from_user.id)
-    text = (
+   text = (
         f"Текущие настройки:\n"
-        f"• Биржа: {setting.exchange}\n"
-        f"• Buy ≤ {setting.buy_threshold or 'не задан'}\n"
-        f"• Sell ≥ {setting.sell_threshold or 'не задан'}\n\n"
+        f"• Биржа: <b>{setting.exchange}</b>\n"
+        f"• Buy ≤ <b>{setting.buy_threshold or 'не задан'}</b>\n"
+        f"• Sell ≥ <b>{setting.sell_threshold or 'не задан'}</b>\n\n"
         "Установить:\n"
-        "/set_exchange <binance|bybit|bitget>\n"
-        "/set_buy <цена>\n"
-        "/set_sell <цена>"
+        "<code>/set_exchange binance</code> — выбрать биржу\n"
+        "<code>/set_buy 41.20</code> — задать порог покупки\n"
+        "<code>/set_sell 42.50</code> — задать порог продажи"
     )
     await message.answer(text)
 
