@@ -12,7 +12,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from config.config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_URL
 from config.db import engine, Base
 from handlers.default import router, menu_registry, version_menu
-from services.aggregator import start_aggregator, filter_and_notify
+from services.aggregator import start_aggregator
+from services.filter_engine import filter_and_notify
 from utils.logger import logger
 
 # Инициализация бота
@@ -20,6 +21,7 @@ bot = Bot(
     token=API_TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
 )
+# Диспетчер с поддержкой FSM
 dp = Dispatcher(storage=MemoryStorage())
 dp.include_router(router)
 
@@ -78,7 +80,9 @@ async def on_shutdown():
     await bot.delete_webhook()
     await bot.session.close()
 
+# Создаем веб-приложение
 app = web.Application()
+# Регистрируем webhook и /ping
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 app.router.add_get("/ping", lambda req: web.Response(text="OK"))
 app.on_startup.append(lambda _: on_startup())
