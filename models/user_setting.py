@@ -9,3 +9,4 @@ class UserSetting(Base):
     buy_threshold = Column(Float, nullable=True)
     sell_threshold = Column(Float, nullable=True)
     volume_limit = Column(Float, nullable=True)  # Лимит объёма сделки
+
