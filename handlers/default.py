@@ -21,11 +21,17 @@ class CalcStates(StatesGroup):
 # Постоянное меню снизу
 MAIN_KB = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="⚙️ Настройки"), KeyboardButton(text="🧮 Калькулятор")],
-        [KeyboardButton(text="📜 История"),  KeyboardButton(text="🔥 Топ-сделки")],
+        [
+            KeyboardButton(text="⚙️ Настройки"),
+            KeyboardButton(text="🧮 Калькулятор"),
+        ],
+        [
+            KeyboardButton(text="📜 История"),
+            KeyboardButton(text="🔥 Топ-сделки"),
+        ],
     ],
     resize_keyboard=True,
-    one_time_keyboard=False
+    one_time_keyboard=False,
 )
 
 async def get_or_create_setting(session: AsyncSession, user_id: int) -> UserSetting:
@@ -45,7 +51,6 @@ async def cmd_start(message: types.Message):
         reply_markup=MAIN_KB
     )
 
-# Обработка кнопок через lambda, без Text-фильтра
 @router.message(lambda message: message.text == "⚙️ Настройки")
 async def text_settings(message: types.Message):
     async with AsyncSessionLocal() as session:
@@ -55,7 +60,7 @@ async def text_settings(message: types.Message):
         f"• Биржа: <b>{setting.exchange}</b>\n"
         f"• Buy ≤ <b>{setting.buy_threshold or '—'}</b>\n"
         f"• Sell ≥ <b>{setting.sell_threshold or '—'}</b>\n\n"
-        "Чтобы изменить пороги, войдите в соответствующий раздел меню.",
+        "Чтобы изменить пороги, используйте кнопки Калькулятора или введённые команды.",
         parse_mode="HTML",
         reply_markup=MAIN_KB
     )
@@ -63,21 +68,26 @@ async def text_settings(message: types.Message):
 @router.message(lambda message: message.text == "🧮 Калькулятор")
 async def text_calculator(message: types.Message, state: FSMContext):
     await message.answer(
-        "Введите: сумма buy_price sell_price\n"
+        "Введите через пробел: сумма buy_price sell_price\n"
         "Например: <code>100 41.20 42.50</code>",
         parse_mode="HTML",
         reply_markup=ReplyKeyboardRemove()
     )
     await state.set_state(CalcStates.waiting_input)
 
-@router.message(lambda message: message.text and message.text.split() and len(message.text.split()) == 3, state=CalcStates.waiting_input)
+@router.message(lambda message: state := message.text and state, state=CalcStates.waiting_input)
 async def calc_input(message: types.Message, state: FSMContext):
     parts = message.text.split()
+    if len(parts) != 3:
+        return await message.answer(
+            "Неверный формат. Введите три числа, например: 100 41.20 42.50",
+            reply_markup=ReplyKeyboardRemove()
+        )
     try:
         amount, buy_p, sell_p = map(float, parts)
     except ValueError:
         return await message.answer(
-            "Пожалуйста, введите три числа через пробел, например: 100 41.20 42.50",
+            "Пожалуйста, вводите только числа, например: 100 41.20 42.50",
             reply_markup=ReplyKeyboardRemove()
         )
     profit = amount * (sell_p - buy_p)
@@ -91,15 +101,13 @@ async def calc_input(message: types.Message, state: FSMContext):
 @router.message(lambda message: message.text == "📜 История")
 async def text_history(message: types.Message):
     await message.answer(
-        "🕑 История сделок:\n(заглушка)",
+        "🕑 История сделок:\n(пока нет данных)",
         reply_markup=MAIN_KB
     )
 
 @router.message(lambda message: message.text == "🔥 Топ-сделки")
 async def text_top(message: types.Message):
     await message.answer(
-        "🏆 Топ-сделки за сегодня:\n(заглушка)",
+        "🏆 Топ-сделки за сегодня:\n(пока нет данных)",
         reply_markup=MAIN_KB
-    )
-
     )
