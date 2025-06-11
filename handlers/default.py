@@ -1,6 +1,6 @@
 from aiogram import Router, types
 from aiogram.filters.command import Command
-from aiogram.fsm.filters.state import StateFilter
+from aiogram.filters.state import StateFilter
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
