@@ -1,154 +1,87 @@
-from aiogram import Router, types
-from aiogram.filters.command import Command
-from aiogram.types import (
-    InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
+import os
+import asyncio
+import aiohttp
+from aiohttp import web
+from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.types import BotCommand
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler
+from aiogram.fsm.storage.memory import MemoryStorage
+
+from config.config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_URL
+from config.db import engine, Base
+from handlers.default import router as default_router
+from services.aggregator import start_aggregator
+from services.filter_engine import filter_and_notify
+from utils.logger import logger
+
+# Инициализация бота с HTML-парсингом
+bot = Bot(
+    token=API_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
 )
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.context import FSMContext
-from sqlalchemy.ext.asyncio import AsyncSession
+# Dispatcher с поддержкой FSM
+dp = Dispatcher(storage=MemoryStorage())
+# Регистрируем маршруты хендлеров
+dp.include_router(default_router)
 
-from config.db import AsyncSessionLocal
-from models.user_setting import UserSetting
+async def init_db():
+    """Создаёт таблицы в базе при старте"""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
-router = Router()
+async def set_commands():
+    """Устанавливает команды бота, видимые в UI"""
+    commands = [
+        BotCommand(command="start", description="Запустить бота"),
+        BotCommand(command="settings", description="Показать настройки"),
+        BotCommand(command="set_exchange", description="Выбрать биржу"),
+        BotCommand(command="set_buy", description="Задать порог покупки"),
+        BotCommand(command="set_sell", description="Задать порог продажи"),
+    ]
+    await bot.set_my_commands(commands)
 
-# FSM-состояния для Free версии настроек
-class FreeSettingsStates(StatesGroup):
-    exchange = State()
-    buy = State()
-    sell = State()
-    volume = State()
+async def keep_awake():
+    """Регулярно пингует собственный /ping, чтобы инстанс не засыпал"""
+    await asyncio.sleep(5)
+    url = WEBHOOK_URL + "/ping"
+    async with aiohttp.ClientSession() as session:
+        while True:
+            try:
+                await session.get(url)
+            except Exception:
+                pass
+            await asyncio.sleep(30)
 
-# Главное меню: версия Free/Pro
-def version_menu() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🆓 Free Version", callback_data="version:free")],
-        [InlineKeyboardButton(text="💎 Pro Version", callback_data="version:pro")],
-    ])
+async def on_startup():
+    # Инициализация базы данных
+    await init_db()
+    # Регистрация команд в UI
+    await set_commands()
+    # Установка вебхука
+    await bot.set_webhook(WEBHOOK_URL + WEBHOOK_PATH)
+    logger.info(f"Webhook set to {WEBHOOK_URL + WEBHOOK_PATH}")
+    # Запуск фонового агрегатора
+    asyncio.create_task(start_aggregator(filter_and_notify))
+    # Запуск self-ping для предотвращения засыпания
+    asyncio.create_task(keep_awake())
 
-# Меню Free версии
-def free_menu() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🏷 Выбрать биржу", callback_data="free:exchange")],
-        [InlineKeyboardButton(text="📈 Buy ≤ ...", callback_data="free:buy")],
-        [InlineKeyboardButton(text="📉 Sell ≥ ...", callback_data="free:sell")],
-        [InlineKeyboardButton(text="🔢 Лимит объёма", callback_data="free:volume")],
-        [InlineKeyboardButton(text="📊 Показать настройки", callback_data="free:show")],
-        [InlineKeyboardButton(text="🔙 Назад", callback_data="version:main")],
-    ])
+async def on_shutdown():
+    # Удаление вебхука и закрытие сессии
+    await bot.delete_webhook()
+    await bot.session.close()
 
-async def get_or_create_setting(session: AsyncSession, user_id: int) -> UserSetting:
-    setting = await session.get(UserSetting, user_id)
-    if not setting:
-        setting = UserSetting(user_id=user_id)
-        session.add(setting)
-        await session.commit()
-        await session.refresh(setting)
-    return setting
+# Создание aiohttp-приложения
+app = web.Application()
+# Регистрируем обработчик вебхука
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+# Маршрут для heartbeat
+app.router.add_get("/ping", lambda request: web.Response(text="OK"))
 
-@router.message(Command("start"))
-async def cmd_start(message: Message):
-    text = (
-        "🆓 *Free Version* (Бесплатно):\n"
-        "• Мониторинг одной биржи (Binance, Bybit, OKX, Bitget)\n"
-        "• Порог BUY и SELL\n"
-        "• Лимит объёма сделки\n\n"
-        "💎 *Pro Version* (скоро):\n"
-        "Расширенные функции и статистика\n\n"
-        "Выберите версию:"   
-    )
-    await message.answer(text, parse_mode="Markdown", reply_markup=version_menu())
+app.on_startup.append(lambda _: on_startup())
+app.on_shutdown.append(lambda _: on_shutdown())
 
-@router.callback_query(lambda c: c.data.startswith("version:"))
-async def cb_version(c: CallbackQuery):
-    mode = c.data.split(":")[1]
-    if mode == "main":
-        await c.message.edit_text("Выберите версию:", reply_markup=version_menu())
-    elif mode == "free":
-        await c.message.edit_text("🆓 Free Version Menu:", reply_markup=free_menu())
-    else:
-        await c.answer("Pro версия скоро будет доступна!", show_alert=True)
-    await c.answer()
-
-@router.callback_query(lambda c: c.data.startswith("free:"))
-async def cb_free(c: CallbackQuery, state: FSMContext):
-    action = c.data.split(":")[1]
-    if action == "exchange":
-        await c.message.edit_text("Введите биржу (binance, bybit, okx или bitget):")
-        await state.set_state(FreeSettingsStates.exchange)
-    elif action == "buy":
-        await c.message.edit_text("Введите BUY-порог (число), например: 41.20:")
-        await state.set_state(FreeSettingsStates.buy)
-    elif action == "sell":
-        await c.message.edit_text("Введите SELL-порог (число), например: 42.50:")
-        await state.set_state(FreeSettingsStates.sell)
-    elif action == "volume":
-        await c.message.edit_text("Введите лимит объёма (число долларов), например: 100:")
-        await state.set_state(FreeSettingsStates.volume)
-    elif action == "show":
-        async with AsyncSessionLocal() as session:
-            st = await get_or_create_setting(session, c.from_user.id)
-        text = (
-            f"📊 Настройки Free Version:\n"
-            f"• Биржа: {st.exchange}\n"
-            f"• Buy ≤ {st.buy_threshold or '-'}\n"
-            f"• Sell ≥ {st.sell_threshold or '-'}\n"
-            f"• Объём ≤ ${st.volume_limit or '-'}"
-        )
-        await c.message.edit_text(text, reply_markup=free_menu())
-    elif action == "main":
-        await c.message.edit_text("Выберите версию:", reply_markup=version_menu())
-    await c.answer()
-
-# Обработчики FSM FreeSettingsStates
-@router.message(FreeSettingsStates.exchange)
-async def process_exchange(message: Message, state: FSMContext):
-    exch = message.text.lower()
-    if exch not in ("binance","bybit","okx","bitget"):
-        return await message.answer("Неверная биржа, попробуйте снова.")
-    async with AsyncSessionLocal() as session:
-        st = await get_or_create_setting(session, message.from_user.id)
-        st.exchange = exch
-        await session.commit()
-    await state.clear()
-    await message.answer(f"✅ Биржа установлена: {exch}", reply_markup=free_menu())
-
-@router.message(FreeSettingsStates.buy)
-async def process_buy(message: Message, state: FSMContext):
-    try:
-        val = float(message.text)
-    except ValueError:
-        return await message.answer("Неверный формат.")
-    async with AsyncSessionLocal() as session:
-        st = await get_or_create_setting(session, message.from_user.id)
-        st.buy_threshold = val
-        await session.commit()
-    await state.clear()
-    await message.answer(f"✅ BUY ≤ {val}", reply_markup=free_menu())
-
-@router.message(FreeSettingsStates.sell)
-async def process_sell(message: Message, state: FSMContext):
-    try:
-        val = float(message.text)
-    except ValueError:
-        return await message.answer("Неверный формат.")
-    async with AsyncSessionLocal() as session:
-        st = await get_or_create_setting(session, message.from_user.id)
-        st.sell_threshold = val
-        await session.commit()
-    await state.clear()
-    await message.answer(f"✅ SELL ≥ {val}", reply_markup=free_menu())
-
-@router.message(FreeSettingsStates.volume)
-async def process_volume(message: Message, state: FSMContext):
-    try:
-        val = float(message.text)
-    except ValueError:
-        return await message.answer("Неверный формат.")
-    async with AsyncSessionLocal() as session:
-        st = await get_or_create_setting(session, message.from_user.id)
-        st.volume_limit = val
-        await session.commit()
-    await state.clear()
-    await message.answer(f"✅ Объём ≤ ${val}", reply_markup=free_menu())
-
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8000))
+    web.run_app(app, host="0.0.0.0", port=port)
