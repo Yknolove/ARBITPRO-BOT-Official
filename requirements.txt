@@ -3,3 +3,4 @@ SQLAlchemy
 python-dotenv
 aiohttp
 psycopg2-binary
+aiosqlite
