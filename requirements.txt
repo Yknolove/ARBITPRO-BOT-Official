@@ -1,0 +1,5 @@
+aiogram==3.*
+SQLAlchemy
+python-dotenv
+aiohttp
+psycopg2-binary
