@@ -1,6 +1,10 @@
 from aiogram import Router, types
-from aiogram.filters import Command, CommandObject
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.filters import Command
+from aiogram.types import (
+    InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
+)
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.db import AsyncSessionLocal
@@ -8,15 +12,25 @@ from models.user_setting import UserSetting
 
 router = Router()
 
-# 1) Делаем ReplyKeyboardMarkup с persistent_keyboard=True
-MAIN_KB = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="/start"), KeyboardButton(text="/settings")],
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=False,
-    persistent_keyboard=True  # <--- ключевое
-)
+# FSM-состояния для ввода порогов
+class ConfigStates(StatesGroup):
+    waiting_buy = State()
+    waiting_sell = State()
+    waiting_exchange = State()
+
+# Главное меню — Inline
+MAIN_MENU = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton("⚙️ Настройки", callback_data="menu_settings")],
+    [InlineKeyboardButton("ℹ️ Показать настройки", callback_data="menu_show")],
+])
+
+# Подменю настроек
+SETTINGS_MENU = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton("📈 Установить BUY-порог", callback_data="set_buy")],
+    [InlineKeyboardButton("📉 Установить SELL-порог", callback_data="set_sell")],
+    [InlineKeyboardButton("🏷 Выбрать биржу", callback_data="set_exchange")],
+    [InlineKeyboardButton("🔙 Назад", callback_data="back_main")],
+])
 
 async def get_setting(session: AsyncSession, user_id: int) -> UserSetting:
     setting = await session.get(UserSetting, user_id)
@@ -27,72 +41,90 @@ async def get_setting(session: AsyncSession, user_id: int) -> UserSetting:
         await session.refresh(setting)
     return setting
 
-@router.message(Command(commands=["start"]))
+@router.message(Command("start"))
 async def cmd_start(message: types.Message):
     await message.answer(
-        "👋 Привет! Я ArbitPRO Bot.\n"
-        "В базовой версии я отслеживаю P2P-арбитраж USDT между Binance, Bybit и Bitget.\n"
-        "Используй /settings для установки порогов.",
-        reply_markup=MAIN_KB
+        "👋 Добро пожаловать в ArbitPRO!\n\n"
+        "Здесь вы можете быстро настроить фильтры и получить уведомления об арбитраже.",
+        reply_markup=MAIN_MENU
     )
 
-@router.message(Command(commands=["settings"]))
-async def cmd_settings(message: types.Message):
+@router.callback_query(lambda c: c.data == "menu_show")
+async def show_settings(c: types.CallbackQuery):
     async with AsyncSessionLocal() as session:
-        setting = await get_setting(session, message.from_user.id)
-
-    text = (
-        "Текущие настройки:\n"
+        setting = await get_setting(session, c.from_user.id)
+    await c.message.edit_text(
+        f"📊 Текущие настройки:\n"
         f"• Биржа: <b>{setting.exchange}</b>\n"
-        f"• Buy ≤ <b>{setting.buy_threshold or 'не задан'}</b>\n"
-        f"• Sell ≥ <b>{setting.sell_threshold or 'не задан'}</b>\n\n"
-        "Установить:\n"
-        "<code>/set_exchange binance</code>\n"
-        "<code>/set_buy 41.20</code>\n"
-        "<code>/set_sell 42.50</code>"
+        f"• Buy ≤ <b>{setting.buy_threshold or '—'}</b>\n"
+        f"• Sell ≥ <b>{setting.sell_threshold or '—'}</b>",
+        parse_mode="HTML",
+        reply_markup=MAIN_MENU
     )
-    await message.answer(text, reply_markup=MAIN_KB)
+    await c.answer()
 
-@router.message(Command(commands=["set_exchange"]))
-async def cmd_set_exchange(message: types.Message, command: CommandObject):
-    exch = command.args.lower()
-    if exch not in ("binance", "bybit", "bitget"):
-        return await message.answer(
-            "Неверная биржа. Выберите binance, bybit или bitget.",
-            reply_markup=MAIN_KB
-        )
-    async with AsyncSessionLocal() as session:
-        setting = await get_setting(session, message.from_user.id)
-        setting.exchange = exch
-        await session.commit()
-    await message.answer(f"Биржа: <b>{exch}</b>", reply_markup=MAIN_KB)
+@router.callback_query(lambda c: c.data == "menu_settings")
+async def menu_settings(c: types.CallbackQuery):
+    await c.message.edit_text("⚙️ Выберите, что хотите изменить:", reply_markup=SETTINGS_MENU)
+    await c.answer()
 
-@router.message(Command(commands=["set_buy"]))
-async def cmd_set_buy(message: types.Message, command: CommandObject):
+@router.callback_query(lambda c: c.data == "back_main")
+async def back_main(c: types.CallbackQuery):
+    await c.message.edit_text("Главное меню:", reply_markup=MAIN_MENU)
+    await c.answer()
+
+@router.callback_query(lambda c: c.data == "set_buy")
+async def callback_set_buy(c: types.CallbackQuery, state: FSMContext):
+    await c.message.answer("Введите новый BUY-порог (например: 41.20):", reply_markup=ReplyKeyboardRemove())
+    await state.set_state(ConfigStates.waiting_buy)
+    await c.answer()
+
+@router.callback_query(lambda c: c.data == "set_sell")
+async def callback_set_sell(c: types.CallbackQuery, state: FSMContext):
+    await c.message.answer("Введите новый SELL-порог (например: 42.50):", reply_markup=ReplyKeyboardRemove())
+    await state.set_state(ConfigStates.waiting_sell)
+    await c.answer()
+
+@router.callback_query(lambda c: c.data == "set_exchange")
+async def callback_set_exchange(c: types.CallbackQuery, state: FSMContext):
+    await c.message.answer("Введите название биржи (binance, bybit или bitget):", reply_markup=ReplyKeyboardRemove())
+    await state.set_state(ConfigStates.waiting_exchange)
+    await c.answer()
+
+@router.message(ConfigStates.waiting_buy)
+async def process_buy(message: types.Message, state: FSMContext):
     try:
-        val = float(command.args)
+        val = float(message.text)
     except ValueError:
-        return await message.answer(
-            "Неверный формат, например: /set_buy 41.20",
-            reply_markup=MAIN_KB
-        )
+        return await message.answer("Неверный формат, введите, например: 41.20")
     async with AsyncSessionLocal() as session:
         setting = await get_setting(session, message.from_user.id)
         setting.buy_threshold = val
         await session.commit()
-    await message.answer(f"Buy ≤ <b>{val}₴</b>", reply_markup=MAIN_KB)
+    await message.answer(f"✅ BUY-порог установлен: ≤ {val}", reply_markup=MAIN_MENU)
+    await state.clear()
 
-@router.message(Command(commands=["set_sell"]))
-async def cmd_set_sell(message: types.Message, command: CommandObject):
+@router.message(ConfigStates.waiting_sell)
+async def process_sell(message: types.Message, state: FSMContext):
     try:
-        val = float(command.args)
+        val = float(message.text)
     except ValueError:
-        return await message.answer(
-            "Неверный формат, например: /set_sell 42.50",
-            reply_markup=MAIN_KB
-        )
+        return await message.answer("Неверный формат, введите, например: 42.50")
     async with AsyncSessionLocal() as session:
         setting = await get_setting(session, message.from_user.id)
         setting.sell_threshold = val
         await session.commit()
-    await message.answer(f"Sell ≥ <b>{val}₴</b>", reply_markup=MAIN_KB)
+    await message.answer(f"✅ SELL-порог установлен: ≥ {val}", reply_markup=MAIN_MENU)
+    await state.clear()
+
+@router.message(ConfigStates.waiting_exchange)
+async def process_exchange(message: types.Message, state: FSMContext):
+    exch = message.text.lower()
+    if exch not in ("binance", "bybit", "bitget"):
+        return await message.answer("Неверная биржа, введите: binance, bybit или bitget")
+    async with AsyncSessionLocal() as session:
+        setting = await get_setting(session, message.from_user.id)
+        setting.exchange = exch
+        await session.commit()
+    await message.answer(f"✅ Биржа установлена: {exch}", reply_markup=MAIN_MENU)
+    await state.clear()
