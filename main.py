@@ -11,36 +11,43 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from config.config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_URL
 from config.db import engine, Base
-from handlers.default import router          # ← важно именно так
+from handlers.default import router
 from services.aggregator import start_aggregator
 from services.filter_engine import filter_and_notify
 from utils.logger import logger
 
+# Инициализация бота
 bot = Bot(
     token=API_TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
 )
+# Диспетчер с поддержкой FSM
 dp = Dispatcher(storage=MemoryStorage())
-
-# Подключаем наш router из handlers/default.py
+# Регистрируем маршруты из handlers/default.py
 dp.include_router(router)
 
 async def init_db():
+    """Создает таблицы в базе при старте."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 async def set_commands():
+    """Устанавливает команды бота, видимые в интерфейсе Telegram."""
     await bot.set_my_commands([
-        BotCommand("start", "Запустить бота"),
+        BotCommand(command="start", description="Запустить бота"),
     ])
 
 async def keep_awake():
+    """Регулярно пингует /ping, чтобы инстанс не засыпал."""
     await asyncio.sleep(5)
     url = WEBHOOK_URL + "/ping"
     session = aiohttp.ClientSession()
     try:
         while True:
-            await session.get(url)
+            try:
+                await session.get(url)
+            except Exception:
+                pass
             await asyncio.sleep(30)
     except asyncio.CancelledError:
         await session.close()
@@ -51,16 +58,21 @@ async def on_startup():
     await set_commands()
     await bot.set_webhook(WEBHOOK_URL + WEBHOOK_PATH)
     logger.info(f"Webhook set to {WEBHOOK_URL + WEBHOOK_PATH}")
+    # Запускаем фоновый агрегатор
     asyncio.create_task(start_aggregator(filter_and_notify))
+    # Запускаем self-ping, чтобы инстанс не засыпал
     asyncio.create_task(keep_awake())
 
 async def on_shutdown():
     await bot.delete_webhook()
     await bot.session.close()
 
+# Создаем aiohttp-приложение и регистрируем обработчики
 app = web.Application()
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-app.router.add_get("/ping", lambda req: web.Response(text="OK"))
+# Endpoint для пинга
+app.router.add_get("/ping", lambda request: web.Response(text="OK"))
+# Хуки старта и остановки
 app.on_startup.append(lambda _: on_startup())
 app.on_shutdown.append(lambda _: on_shutdown())
 
