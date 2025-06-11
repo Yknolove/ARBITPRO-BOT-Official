@@ -1,6 +1,5 @@
 from aiogram import Router, types
 from aiogram.filters.command import Command
-from aiogram.filters.text import Text
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
@@ -46,7 +45,8 @@ async def cmd_start(message: types.Message):
         reply_markup=MAIN_KB
     )
 
-@router.message(Text(equals="⚙️ Настройки"))
+# Обработка кнопок через lambda, без Text-фильтра
+@router.message(lambda message: message.text == "⚙️ Настройки")
 async def text_settings(message: types.Message):
     async with AsyncSessionLocal() as session:
         setting = await get_or_create_setting(session, message.from_user.id)
@@ -55,13 +55,12 @@ async def text_settings(message: types.Message):
         f"• Биржа: <b>{setting.exchange}</b>\n"
         f"• Buy ≤ <b>{setting.buy_threshold or '—'}</b>\n"
         f"• Sell ≥ <b>{setting.sell_threshold or '—'}</b>\n\n"
-        "Чтобы изменить пороги, воспользуйтесь кнопками ниже или командами:\n"
-        "<code>/set_exchange</code>, <code>/set_buy</code>, <code>/set_sell</code>",
+        "Чтобы изменить пороги, войдите в соответствующий раздел меню.",
         parse_mode="HTML",
         reply_markup=MAIN_KB
     )
 
-@router.message(Text(equals="🧮 Калькулятор"))
+@router.message(lambda message: message.text == "🧮 Калькулятор")
 async def text_calculator(message: types.Message, state: FSMContext):
     await message.answer(
         "Введите: сумма buy_price sell_price\n"
@@ -71,40 +70,36 @@ async def text_calculator(message: types.Message, state: FSMContext):
     )
     await state.set_state(CalcStates.waiting_input)
 
-@router.message(CalcStates.waiting_input)
+@router.message(lambda message: message.text and message.text.split() and len(message.text.split()) == 3, state=CalcStates.waiting_input)
 async def calc_input(message: types.Message, state: FSMContext):
     parts = message.text.split()
-    if len(parts) != 3:
-        return await message.answer(
-            "Неверный формат. Введите три числа через пробел, например: 100 41.2 42.5",
-            reply_markup=ReplyKeyboardRemove()
-        )
     try:
         amount, buy_p, sell_p = map(float, parts)
     except ValueError:
         return await message.answer(
-            "Пожалуйста, введите числа. Например: 100 41.20 42.50",
+            "Пожалуйста, введите три числа через пробел, например: 100 41.20 42.50",
             reply_markup=ReplyKeyboardRemove()
         )
     profit = amount * (sell_p - buy_p)
     await message.answer(
-        f"💰 Прибыль при сделке {amount}$:\n"
-        f"{amount}×({sell_p}−{buy_p}) = <b>{profit:.2f}₴</b>",
+        f"💰 Прибыль: {amount}×({sell_p}−{buy_p}) = <b>{profit:.2f}₴</b>",
         parse_mode="HTML",
         reply_markup=MAIN_KB
     )
     await state.clear()
 
-@router.message(Text(equals="📜 История"))
+@router.message(lambda message: message.text == "📜 История")
 async def text_history(message: types.Message):
     await message.answer(
-        "🕑 История сделок:\n(заглушка, пока нет данных)",
+        "🕑 История сделок:\n(заглушка)",
         reply_markup=MAIN_KB
     )
 
-@router.message(Text(equals="🔥 Топ-сделки"))
+@router.message(lambda message: message.text == "🔥 Топ-сделки")
 async def text_top(message: types.Message):
     await message.answer(
-        "🏆 Топ-сделки за сегодня:\n(заглушка, пока нет данных)",
+        "🏆 Топ-сделки за сегодня:\n(заглушка)",
         reply_markup=MAIN_KB
+    )
+
     )
