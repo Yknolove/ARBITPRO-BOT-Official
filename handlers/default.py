@@ -1,7 +1,9 @@
 from aiogram import Router, types
 from aiogram.filters import Command
 from aiogram.types import (
-    InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    ReplyKeyboardRemove,
 )
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
@@ -20,16 +22,16 @@ class ConfigStates(StatesGroup):
 
 # Главное меню — Inline
 MAIN_MENU = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton("⚙️ Настройки", callback_data="menu_settings")],
-    [InlineKeyboardButton("ℹ️ Показать настройки", callback_data="menu_show")],
+    [InlineKeyboardButton(text="⚙️ Настройки", callback_data="menu_settings")],
+    [InlineKeyboardButton(text="ℹ️ Показать настройки", callback_data="menu_show")],
 ])
 
 # Подменю настроек
 SETTINGS_MENU = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton("📈 Установить BUY-порог", callback_data="set_buy")],
-    [InlineKeyboardButton("📉 Установить SELL-порог", callback_data="set_sell")],
-    [InlineKeyboardButton("🏷 Выбрать биржу", callback_data="set_exchange")],
-    [InlineKeyboardButton("🔙 Назад", callback_data="back_main")],
+    [InlineKeyboardButton(text="📈 Установить BUY-порог", callback_data="set_buy")],
+    [InlineKeyboardButton(text="📉 Установить SELL-порог", callback_data="set_sell")],
+    [InlineKeyboardButton(text="🏷 Выбрать биржу", callback_data="set_exchange")],
+    [InlineKeyboardButton(text="🔙 Назад", callback_data="back_main")],
 ])
 
 async def get_setting(session: AsyncSession, user_id: int) -> UserSetting:
@@ -41,11 +43,11 @@ async def get_setting(session: AsyncSession, user_id: int) -> UserSetting:
         await session.refresh(setting)
     return setting
 
-@router.message(Command("start"))
+@router.message(Command(commands=["start"]))
 async def cmd_start(message: types.Message):
     await message.answer(
         "👋 Добро пожаловать в ArbitPRO!\n\n"
-        "Здесь вы можете быстро настроить фильтры и получить уведомления об арбитраже.",
+        "Здесь можно быстро настроить фильтры и получать уведомления об арбитраже.",
         reply_markup=MAIN_MENU
     )
 
@@ -65,7 +67,7 @@ async def show_settings(c: types.CallbackQuery):
 
 @router.callback_query(lambda c: c.data == "menu_settings")
 async def menu_settings(c: types.CallbackQuery):
-    await c.message.edit_text("⚙️ Выберите, что хотите изменить:", reply_markup=SETTINGS_MENU)
+    await c.message.edit_text("⚙️ Выберите, что изменить:", reply_markup=SETTINGS_MENU)
     await c.answer()
 
 @router.callback_query(lambda c: c.data == "back_main")
@@ -87,7 +89,7 @@ async def callback_set_sell(c: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(lambda c: c.data == "set_exchange")
 async def callback_set_exchange(c: types.CallbackQuery, state: FSMContext):
-    await c.message.answer("Введите название биржи (binance, bybit или bitget):", reply_markup=ReplyKeyboardRemove())
+    await c.message.answer("Введите биржу (binance, bybit или bitget):", reply_markup=ReplyKeyboardRemove())
     await state.set_state(ConfigStates.waiting_exchange)
     await c.answer()
 
@@ -96,7 +98,7 @@ async def process_buy(message: types.Message, state: FSMContext):
     try:
         val = float(message.text)
     except ValueError:
-        return await message.answer("Неверный формат, введите, например: 41.20")
+        return await message.answer("Неверный формат, введите число, например: 41.20")
     async with AsyncSessionLocal() as session:
         setting = await get_setting(session, message.from_user.id)
         setting.buy_threshold = val
@@ -109,7 +111,7 @@ async def process_sell(message: types.Message, state: FSMContext):
     try:
         val = float(message.text)
     except ValueError:
-        return await message.answer("Неверный формат, введите, например: 42.50")
+        return await message.answer("Неверный формат, введите число, например: 42.50")
     async with AsyncSessionLocal() as session:
         setting = await get_setting(session, message.from_user.id)
         setting.sell_threshold = val
