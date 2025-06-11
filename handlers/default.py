@@ -20,8 +20,9 @@ async def get_setting(session: AsyncSession, user_id: int):
 async def cmd_settings(message: types.Message):
     async with AsyncSessionLocal() as session:
         setting = await get_setting(session, message.from_user.id)
-   text = (
-        f"Текущие настройки:\n"
+
+    text = (
+        "Текущие настройки:\n"
         f"• Биржа: <b>{setting.exchange}</b>\n"
         f"• Buy ≤ <b>{setting.buy_threshold or 'не задан'}</b>\n"
         f"• Sell ≥ <b>{setting.sell_threshold or 'не задан'}</b>\n\n"
@@ -41,28 +42,28 @@ async def cmd_set_exchange(message: types.Message, command: CommandObject):
         setting = await get_setting(session, message.from_user.id)
         setting.exchange = exch
         await session.commit()
-    await message.answer(f"Биржа установлена на {exch}.")
+    await message.answer(f"Биржа установлена на <b>{exch}</b>.")
 
 @router.message(Command("set_buy"))
 async def cmd_set_buy(message: types.Message, command: CommandObject):
     try:
         val = float(command.args)
-    except:
+    except ValueError:
         return await message.answer("Неверный формат цены. Например: /set_buy 41.20")
     async with AsyncSessionLocal() as session:
         setting = await get_setting(session, message.from_user.id)
         setting.buy_threshold = val
         await session.commit()
-    await message.answer(f"Порог покупки установлен: ≤ {val}₴.")
+    await message.answer(f"Порог покупки установлен: ≤ <b>{val}₴</b>.")
 
 @router.message(Command("set_sell"))
 async def cmd_set_sell(message: types.Message, command: CommandObject):
     try:
         val = float(command.args)
-    except:
+    except ValueError:
         return await message.answer("Неверный формат цены. Например: /set_sell 42.50")
     async with AsyncSessionLocal() as session:
         setting = await get_setting(session, message.from_user.id)
         setting.sell_threshold = val
         await session.commit()
-    await message.answer(f"Порог продажи установлен: ≥ {val}₴.")
+    await message.answer(f"Порог продажи установлен: ≥ <b>{val}₴</b>.")
