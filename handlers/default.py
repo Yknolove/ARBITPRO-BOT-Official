@@ -11,19 +11,17 @@ from models.user_setting import UserSetting
 
 router = Router()
 
-# FSM-состояния для настроек и калькулятора
 class BotStates(StatesGroup):
     exchange = State()
     buy = State()
     sell = State()
     calc = State()
 
-# Постоянное меню
 MAIN_KB = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="⚙️ Настройки"), KeyboardButton(text="🧮 Калькулятор")],
-        [KeyboardButton(text="🏷 Установить биржу"), KeyboardButton(text="📈 BUY">)],
-        [KeyboardButton(text="📉 SELL"), KeyboardButton(text="📜 История"), KeyboardButton(text="🔥 Топ-сделки")]
+        [KeyboardButton(text="🏷 Установить биржу"), KeyboardButton(text="📈 BUY"), KeyboardButton(text="📉 SELL")],
+        [KeyboardButton(text="📜 История"), KeyboardButton(text="🔥 Топ-сделки")],
     ],
     resize_keyboard=True,
     one_time_keyboard=False
@@ -62,7 +60,7 @@ async def set_exchange_start(message: types.Message, state: FSMContext):
 async def process_exchange(message: types.Message, state: FSMContext):
     exch = message.text.lower()
     if exch not in ("binance", "bybit", "bitget"):
-        return await message.answer("Неверная биржа. Введите binance, bybit или bitget.")
+        return await message.answer("Неверная биржа. Введите: binance, bybit или bitget.")
     async with AsyncSessionLocal() as session:
         st = await get_or_create_setting(session, message.from_user.id)
         st.exchange = exch
@@ -80,7 +78,7 @@ async def process_buy(message: types.Message, state: FSMContext):
     try:
         val = float(message.text)
     except ValueError:
-        return await message.answer("Неверный формат. Введите число, например: 41.20.")
+        return await message.answer("Неверный формат. Введите число: 41.20.")
     async with AsyncSessionLocal() as session:
         st = await get_or_create_setting(session, message.from_user.id)
         st.buy_threshold = val
@@ -98,7 +96,7 @@ async def process_sell(message: types.Message, state: FSMContext):
     try:
         val = float(message.text)
     except ValueError:
-        return await message.answer("Неверный формат. Введите число, например: 42.50.")
+        return await message.answer("Неверный формат. Введите число: 42.50.")
     async with AsyncSessionLocal() as session:
         st = await get_or_create_setting(session, message.from_user.id)
         st.sell_threshold = val
@@ -109,17 +107,20 @@ async def process_sell(message: types.Message, state: FSMContext):
 @router.message(Text(equals="🧮 Калькулятор"))
 async def set_calc_start(message: types.Message, state: FSMContext):
     await state.set_state(BotStates.calc)
-    await message.answer("Введите: сумма buy_price sell_price, например: 100 41.20 42.50", reply_markup=ReplyKeyboardRemove())
+    await message.answer(
+        "Введите: сумма buy_price sell_price, например: 100 41.20 42.50",
+        reply_markup=ReplyKeyboardRemove()
+    )
 
 @router.message(BotStates.calc)
 async def process_calc(message: types.Message, state: FSMContext):
     parts = message.text.split()
     if len(parts) != 3:
-        return await message.answer("Ошибка ввода. Введите три числа через пробел.")
+        return await message.answer("Ошибка ввода. Введите три числа через пробел.", reply_markup=MAIN_KB)
     try:
         amount, buy_p, sell_p = map(float, parts)
     except ValueError:
-        return await message.answer("Введите числа, например: 100 41.20 42.50.")
+        return await message.answer("Введите числа, например: 100 41.20 42.50.", reply_markup=MAIN_KB)
     profit = amount * (sell_p - buy_p)
     await state.clear()
     await message.answer(f"💰 Прибыль: {profit:.2f}₴", reply_markup=MAIN_KB)
