@@ -8,10 +8,13 @@ from models.user_setting import UserSetting
 
 router = Router()
 
-# готовим постоянную клавиатуру внизу
+# Постоянная клавиатура внизу (keyword-only args для кнопок)
 MAIN_KB = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton("/settings"), KeyboardButton("/start")],
+        [
+            KeyboardButton(text="/settings"),
+            KeyboardButton(text="/start")
+        ],
     ],
     resize_keyboard=True
 )
