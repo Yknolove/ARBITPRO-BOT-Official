@@ -24,7 +24,7 @@ bot = Bot(
 # Dispatcher с поддержкой FSM
 dp = Dispatcher(storage=MemoryStorage())
 # Регистрируем маршруты хендлеров
-dp.include_router(default_router)
+
 
 async def init_db():
     """Создаёт таблицы в базе при старте"""
