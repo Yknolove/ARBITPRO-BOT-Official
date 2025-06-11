@@ -4,55 +4,57 @@ from utils.logger import logger
 
 async def fetch_p2p_rates() -> dict:
     """
-    Каждый цикл открывает свою сессию и сразу её закрывает,
-    чтобы не оставалось не закрытых ClientSession.
+    Запрашивает P2P-курсы с Binance и возвращает словарь:
+    {
+        "binance": {"buy": float, "sell": float},
+        "bybit":   {"buy": float, "sell": float},
+        "bitget":  {"buy": float, "sell": float},
+    }
     """
     async with aiohttp.ClientSession() as session:
-        # Binance BUY
         url = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"
         payload = {
-            "asset": "USDT",
-            "fiat": "UAH",
-            "tradeType": "BUY",
-            "merchantCheck": False,
-            "page": 1,
-            "rows": 1
+            "asset": "USDT", "fiat": "UAH",
+            "tradeType": "BUY", "merchantCheck": False,
+            "page": 1, "rows": 1
         }
         headers = {"Content-Type": "application/json"}
 
-        async with session.post(url, json=payload, headers=headers) as resp:
-            data = await resp.json()
-            buy_price = float(data["data"][0]["adv"]["price"])
+        # BUY
+        async with session.post(url, json=payload, headers=headers) as resp_buy:
+            data_buy = await resp_buy.json()
+            buy_price = float(data_buy["data"][0]["adv"]["price"])
 
-        # Binance SELL
+        # SELL
         payload["tradeType"] = "SELL"
-        async with session.post(url, json=payload, headers=headers) as resp:
-            data = await resp.json()
-            sell_price = float(data["data"][0]["adv"]["price"])
+        async with session.post(url, json=payload, headers=headers) as resp_sell:
+            data_sell = await resp_sell.json()
+            sell_price = float(data_sell["data"][0]["adv"]["price"])
 
-        # Заглушки для Bybit и Bitget (поменяешь на реальные запросы позже)
-        return {
-            "binance": {"buy": buy_price, "sell": sell_price},
-            "bybit":   {"buy": 41.30, "sell": 42.00},
-            "bitget":  {"buy": 41.40, "sell": 42.05},
-        }
+    # Заглушки для Bybit и Bitget
+    return {
+        "binance": {"buy": buy_price, "sell": sell_price},
+        "bybit":   {"buy": 41.30,   "sell": 42.00},
+        "bitget":  {"buy": 41.40,   "sell": 42.05},
+    }
+
+async def fetch_current_arbitrage() -> dict:
+    """
+    Обёртка для меню арбитража.
+    """
+    return await fetch_p2p_rates()
 
 async def start_aggregator(publish_callback):
     """
-    Основной цикл агрегатора: каждые 10 сек собирает курсы
-    и передаёт их в функцию publish_callback.
+    Фоновый цикл: каждые 10 секунд собирает курсы и передаёт их в callback.
     """
     while True:
         try:
             rates = await fetch_p2p_rates()
             logger.info(f"Fetched rates: {rates}")
-
             result = publish_callback(rates)
             if asyncio.iscoroutine(result):
                 await result
-
         except Exception as e:
             logger.error(f"Aggregator error: {e}")
-
-        # пауза перед следующим циклом
         await asyncio.sleep(10)
