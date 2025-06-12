@@ -11,11 +11,10 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from config.config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_URL
 from config.db import engine, Base
-from handlers.default import router, menu_registry, version_menu
+from handlers.default import router          # ← только router
 from services.aggregator import start_aggregator
 from services.filter_engine import filter_and_notify
 from utils.logger import logger
-
 # Инициализация бота
 bot = Bot(
     token=API_TOKEN,
