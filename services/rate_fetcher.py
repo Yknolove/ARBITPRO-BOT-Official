@@ -87,3 +87,4 @@ async def fetch_rates() -> dict:
             results["bitget"] = {"buy": 0.0, "sell": 0.0}
 
     return results
+    return results
