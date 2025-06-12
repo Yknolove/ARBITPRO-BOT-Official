@@ -25,8 +25,7 @@ main_kb = ReplyKeyboardMarkup(
         [KeyboardButton(text="🆓 Free Version")],
         [KeyboardButton(text="💎 Pro Version")],
     ],
-    resize_keyboard=True,
-    one_time_keyboard=False
+    resize_keyboard=True
 )
 
 # Меню Free-версии
@@ -36,8 +35,7 @@ free_kb = ReplyKeyboardMarkup(
         [KeyboardButton(text="📉 SELL"),  KeyboardButton(text="🔢 Лимит")],
         [KeyboardButton(text="📊 Показать настройки"), KeyboardButton(text="🔙 Главное меню")],
     ],
-    resize_keyboard=True,
-    one_time_keyboard=False
+    resize_keyboard=True
 )
 
 async def get_or_create_setting(session: AsyncSession, user_id: int) -> UserSetting:
@@ -49,7 +47,7 @@ async def get_or_create_setting(session: AsyncSession, user_id: int) -> UserSett
         await session.refresh(st)
     return st
 
-@router.message(Command("start"), state="*")
+@router.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -57,7 +55,7 @@ async def cmd_start(message: Message, state: FSMContext):
         reply_markup=main_kb
     )
 
-@router.message(lambda msg: msg.text == "🆓 Free Version", state="*")
+@router.message(lambda msg: msg.text == "🆓 Free Version")
 async def enter_free(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -65,7 +63,7 @@ async def enter_free(message: Message, state: FSMContext):
         reply_markup=free_kb
     )
 
-@router.message(lambda msg: msg.text == "💎 Pro Version", state="*")
+@router.message(lambda msg: msg.text == "💎 Pro Version")
 async def enter_pro(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -73,7 +71,7 @@ async def enter_pro(message: Message, state: FSMContext):
         reply_markup=main_kb
     )
 
-@router.message(lambda msg: msg.text == "🔙 Главное меню", state="*")
+@router.message(lambda msg: msg.text == "🔙 Главное меню")
 async def back_main(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -81,7 +79,7 @@ async def back_main(message: Message, state: FSMContext):
         reply_markup=main_kb
     )
 
-@router.message(lambda msg: msg.text == "🏷 Биржа", state="*")
+@router.message(lambda msg: msg.text == "🏷 Биржа")
 async def set_exchange_prompt(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -102,7 +100,7 @@ async def process_exchange(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(f"✅ Биржа установлена: {exch}", reply_markup=free_kb)
 
-@router.message(lambda msg: msg.text == "📈 BUY", state="*")
+@router.message(lambda msg: msg.text == "📈 BUY")
 async def set_buy_prompt(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -124,7 +122,7 @@ async def process_buy(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(f"✅ BUY ≤ {val}", reply_markup=free_kb)
 
-@router.message(lambda msg: msg.text == "📉 SELL", state="*")
+@router.message(lambda msg: msg.text == "📉 SELL")
 async def set_sell_prompt(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -146,7 +144,7 @@ async def process_sell(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(f"✅ SELL ≥ {val}", reply_markup=free_kb)
 
-@router.message(lambda msg: msg.text == "🔢 Лимит", state="*")
+@router.message(lambda msg: msg.text == "🔢 Лимит")
 async def set_volume_prompt(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -168,7 +166,7 @@ async def process_volume(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(f"✅ Объём ≤ ${val}", reply_markup=free_kb)
 
-@router.message(lambda msg: msg.text == "📊 Показать настройки", state="*")
+@router.message(lambda msg: msg.text == "📊 Показать настройки")
 async def show_settings(message: Message, state: FSMContext):
     await state.clear()
     async with AsyncSessionLocal() as session:
