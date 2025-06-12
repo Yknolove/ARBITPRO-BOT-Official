@@ -23,20 +23,22 @@ class FreeSettingsStates(StatesGroup):
     volume = State()
 
 def version_menu() -> InlineKeyboardMarkup:
-    kb = InlineKeyboardMarkup(row_width=2).add(
+    kb = InlineKeyboardMarkup(inline_keyboard=[], row_width=2)
+    kb.add(
         InlineKeyboardButton("🆓 Free Version", callback_data="version:free"),
-        InlineKeyboardButton("💎 Pro Version", callback_data="version:pro")
+        InlineKeyboardButton("💎 Pro Version",  callback_data="version:pro"),
     )
     return kb
 
 def free_menu() -> InlineKeyboardMarkup:
-    kb = InlineKeyboardMarkup(row_width=2).add(
+    kb = InlineKeyboardMarkup(inline_keyboard=[], row_width=2)
+    kb.add(
         InlineKeyboardButton("🏷 Биржа", callback_data="free:exchange"),
         InlineKeyboardButton("📈 BUY ≤ ...", callback_data="free:buy"),
         InlineKeyboardButton("📉 SELL ≥ ...", callback_data="free:sell"),
         InlineKeyboardButton("🔢 Лимит", callback_data="free:volume"),
         InlineKeyboardButton("📊 Показать настройки", callback_data="free:show"),
-        InlineKeyboardButton("🔙 Назад", callback_data="version:main")
+        InlineKeyboardButton("🔙 Назад", callback_data="version:main"),
     )
     return kb
 
@@ -64,7 +66,12 @@ async def cb_version(c: CallbackQuery, state: FSMContext):
         text = "Выберите версию:"
         kb = version_menu()
     elif action == "free":
-        text = "🆓 Free Version Menu:\n• Мониторинг одной биржи P2P\n• BUY/SELL пороги\n• Лимит объёма"
+        text = (
+            "🆓 Free Version Menu:\n"
+            "• Мониторинг одной биржи P2P\n"
+            "• BUY/SELL пороги\n"
+            "• Лимит объёма"
+        )
         kb = free_menu()
     else:
         await c.answer("Pro версия скоро будет доступна!", show_alert=True)
@@ -159,5 +166,7 @@ async def process_volume(message: Message, state: FSMContext):
         st.volume_limit = val
         await session.commit()
     await state.clear()
+    sent = await message.answer(f"✅ Объём ≤ ${val}", reply_markup=free_menu())
+    menu_registry[sent.chat.id] = sent.message_id
     sent = await message.answer(f"✅ Объём ≤ ${val}", reply_markup=free_menu())
     menu_registry[sent.chat.id] = sent.message_id
