@@ -1,185 +1,42 @@
-# handlers/default.py
-
-from aiogram import Router, F
-from aiogram.filters.command import Command
-from aiogram.types import (
-    ReplyKeyboardMarkup, KeyboardButton,
-    Message, ReplyKeyboardRemove
-)
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.context import FSMContext
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from config.db import AsyncSessionLocal
-from models.user_setting import UserSetting
+from aiogram import Router
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import CommandStart, CallbackQuery
+from services.aggregator import start_monitoring  # пример функции запуска мониторинга
 
 router = Router()
 
-class FreeSettingsStates(StatesGroup):
-    exchange = State()
-    buy      = State()
-    sell     = State()
-    volume   = State()
+@router.message(CommandStart())
+async def cmd_start(message: Message):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton("🆓 Free Version", callback_data="free")],
+        [InlineKeyboardButton("🔒 Pro Version", callback_data="pro")],
+    ])
+    await message.answer("Выберите версию:", reply_markup=kb)
 
-# Главное меню
-main_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="🆓 Free Version")],
-        [KeyboardButton(text="💎 Pro Version")],
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=False
-)
+@router.callback_query(CallbackQuery.filter(lambda c: c.data in ["free", "pro"]))
+async def cb_version(cq: CallbackQuery):
+    if cq.data == "free":
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton("📊 Выбрать биржу", callback_data="choose_exchange")],
+            [InlineKeyboardButton("🔄 Обновить", callback_data="refresh")],
+        ])
+        await cq.message.edit_text(
+            "Free версия: мониторинг одной P2P‑биржи.\n"
+            "Доступные биржи: Binance, Bybit, OKX, Bitget.",
+            reply_markup=kb
+        )
+    else:
+        await cq.answer("Pro версия пока недоступна", show_alert=True)
 
-# Меню Free-версии
-free_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="🏷 Биржа"), KeyboardButton(text="📈 BUY")],
-        [KeyboardButton(text="📉 SELL"),  KeyboardButton(text="🔢 Лимит")],
-        [KeyboardButton(text="📊 Показать настройки"), KeyboardButton(text="🔙 Главное меню")],
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=False
-)
+@router.callback_query(CallbackQuery.filter(lambda c: c.data == "choose_exchange"))
+async def cb_choose_exchange(cq: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(x, callback_data=f"exch_{x.lower()}")] for x in ["Binance","Bybit","OKX","Bitget"]
+    ])
+    await cq.message.edit_text("Выберите биржу для мониторинга:", reply_markup=kb)
 
-async def get_or_create_setting(session: AsyncSession, user_id: int) -> UserSetting:
-    st = await session.get(UserSetting, user_id)
-    if not st:
-        st = UserSetting(user_id=user_id)
-        session.add(st)
-        await session.commit()
-        await session.refresh(st)
-    return st
-
-@router.message(Command("start"))
-async def cmd_start(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer(
-        "👋 Добро пожаловать в ArbitPRO!\nВыберите версию:",
-        reply_markup=main_kb
-    )
-
-@router.message(F.text == "🆓 Free Version")
-async def enter_free(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer(
-        "🆓 Free Version Menu:\nВыберите действие:",
-        reply_markup=free_kb
-    )
-
-@router.message(F.text == "💎 Pro Version")
-async def enter_pro(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer(
-        "💎 Pro версия скоро будет доступна!",
-        reply_markup=main_kb
-    )
-
-@router.message(F.text == "🔙 Главное меню")
-async def back_main(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer(
-        "Вы вернулись в главное меню:",
-        reply_markup=main_kb
-    )
-
-@router.message(F.text == "🏷 Биржа")
-async def set_exchange_prompt(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer(
-        "Введите биржу (binance, bybit, okx, bitget):",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    await state.set_state(FreeSettingsStates.exchange)
-
-@router.message(FreeSettingsStates.exchange)
-async def process_exchange(message: Message, state: FSMContext):
-    exch = message.text.lower()
-    if exch not in ("binance", "bybit", "okx", "bitget"):
-        return await message.answer("Неверная биржа.")
-    async with AsyncSessionLocal() as session:
-        st = await get_or_create_setting(session, message.from_user.id)
-        st.exchange = exch
-        await session.commit()
-    await state.clear()
-    await message.answer(f"✅ Биржа установлена: {exch}", reply_markup=free_kb)
-
-@router.message(F.text == "📈 BUY")
-async def set_buy_prompt(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer(
-        "Введите BUY-порог (число), например: 41.20:",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    await state.set_state(FreeSettingsStates.buy)
-
-@router.message(FreeSettingsStates.buy)
-async def process_buy(message: Message, state: FSMContext):
-    try:
-        val = float(message.text)
-    except ValueError:
-        return await message.answer("Неверный формат. Введите число.")
-    async with AsyncSessionLocal() as session:
-        st = await get_or_create_setting(session, message.from_user.id)
-        st.buy_threshold = val
-        await session.commit()
-    await state.clear()
-    await message.answer(f"✅ BUY ≤ {val}", reply_markup=free_kb)
-
-@router.message(F.text == "📉 SELL")
-async def set_sell_prompt(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer(
-        "Введите SELL-порог (число), например: 42.50:",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    await state.set_state(FreeSettingsStates.sell)
-
-@router.message(FreeSettingsStates.sell)
-async def process_sell(message: Message, state: FSMContext):
-    try:
-        val = float(message.text)
-    except ValueError:
-        return await message.answer("Неверный формат. Введите число.")
-    async with AsyncSessionLocal() as session:
-        st = await get_or_create_setting(session, message.from_user.id)
-        st.sell_threshold = val
-        await session.commit()
-    await state.clear()
-    await message.answer(f"✅ SELL ≥ {val}", reply_markup=free_kb)
-
-@router.message(F.text == "🔢 Лимит")
-async def set_volume_prompt(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer(
-        "Введите лимит объёма (число долларов):",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    await state.set_state(FreeSettingsStates.volume)
-
-@router.message(FreeSettingsStates.volume)
-async def process_volume(message: Message, state: FSMContext):
-    try:
-        val = float(message.text)
-    except ValueError:
-        return await message.answer("Неверный формат. Введите число.")
-    async with AsyncSessionLocal() as session:
-        st = await get_or_create_setting(session, message.from_user.id)
-        st.volume_limit = val
-        await session.commit()
-    await state.clear()
-    await message.answer(f"✅ Объём ≤ ${val}", reply_markup=free_kb)
-
-@router.message(F.text == "📊 Показать настройки")
-async def show_settings(message: Message, state: FSMContext):
-    await state.clear()
-    async with AsyncSessionLocal() as session:
-        st = await get_or_create_setting(session, message.from_user.id)
-    await message.answer(
-        f"📊 Настройки Free Version:\n"
-        f"Биржа: {st.exchange}\n"
-        f"BUY ≤ {st.buy_threshold or '-'}\n"
-        f"SELL ≥ {st.sell_threshold or '-'}\n"
-        f"Объём ≤ ${st.volume_limit or '-'}",
-        reply_markup=free_kb
-    )
+# Пример кнопки 'refresh'
+@router.callback_query(CallbackQuery.filter(lambda c: c.data == "refresh"))
+async def cb_refresh(cq: CallbackQuery):
+    await start_monitoring(cq.from_user.id)  # пример: обновляем данные
+    await cq.answer("Данные обновлены ✅")
