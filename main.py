@@ -45,7 +45,7 @@ async def keep_awake():
         while True:
             try:
                 await session.get(url)
-            except Exception:
+            except:
                 pass
             await asyncio.sleep(30)
     except asyncio.CancelledError:
@@ -63,7 +63,7 @@ async def refresh_menus():
                     message_id=msg_id,
                     reply_markup=version_menu()
                 )
-            except Exception:
+            except:
                 menu_registry.pop(chat_id, None)
         await asyncio.sleep(30)
 
