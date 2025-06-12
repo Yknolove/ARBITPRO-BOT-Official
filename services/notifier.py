@@ -1,11 +1,15 @@
 # services/notifier.py
 
 from aiogram import Bot
+from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from config.config import API_TOKEN
 
-# Один экземпляр Bot для отправки уведомлений
-_bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
+# Инициализируем Bot с нужными свойствами
+_bot = Bot(
+    token=API_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+)
 
 async def notify_user(user_id: int, text: str) -> None:
     """
