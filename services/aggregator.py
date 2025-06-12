@@ -1,60 +1,41 @@
+# services/aggregator.py
+
 import asyncio
-import aiohttp
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from config.db import AsyncSessionLocal
+from models.user_setting import UserSetting
+from services.filter_engine import filter_and_notify
+from services.rate_fetcher import fetch_rates  # Замените на вашу функцию получения курсов
 from utils.logger import logger
 
-async def fetch_p2p_rates() -> dict:
-    """
-    Запрашивает P2P-курсы с Binance и возвращает словарь:
-    {
-        "binance": {"buy": float, "sell": float},
-        "bybit":   {"buy": float, "sell": float},
-        "bitget":  {"buy": float, "sell": float},
-    }
-    """
-    async with aiohttp.ClientSession() as session:
-        url = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"
-        payload = {
-            "asset": "USDT", "fiat": "UAH",
-            "tradeType": "BUY", "merchantCheck": False,
-            "page": 1, "rows": 1
-        }
-        headers = {"Content-Type": "application/json"}
+# Интервал опроса бирж в секундах
+POLL_INTERVAL = 10
 
-        # BUY
-        async with session.post(url, json=payload, headers=headers) as resp_buy:
-            data_buy = await resp_buy.json()
-            buy_price = float(data_buy["data"][0]["adv"]["price"])
-
-        # SELL
-        payload["tradeType"] = "SELL"
-        async with session.post(url, json=payload, headers=headers) as resp_sell:
-            data_sell = await resp_sell.json()
-            sell_price = float(data_sell["data"][0]["adv"]["price"])
-
-    # Заглушки для Bybit и Bitget
-    return {
-        "binance": {"buy": buy_price, "sell": sell_price},
-        "bybit":   {"buy": 41.30,   "sell": 42.00},
-        "bitget":  {"buy": 41.40,   "sell": 42.05},
-    }
-
-async def fetch_current_arbitrage() -> dict:
+async def start_aggregator():
     """
-    Обёртка для меню арбитража.
-    """
-    return await fetch_p2p_rates()
-
-async def start_aggregator(publish_callback):
-    """
-    Фоновый цикл: каждые 10 секунд собирает курсы и передаёт их в callback.
+    Фоновая задача, которая раз в POLL_INTERVAL секунд:
+      1) Получает актуальные курсы с бирж.
+      2) Загружает настройки всех пользователей из БД.
+      3) Вызывает filter_and_notify(rates, user_settings).
     """
     while True:
         try:
-            rates = await fetch_p2p_rates()
+            # Шаг 1: получить курсы
+            rates = await fetch_rates()
             logger.info(f"Fetched rates: {rates}")
-            result = publish_callback(rates)
-            if asyncio.iscoroutine(result):
-                await result
+
+            # Шаг 2: загрузить все пользовательские настройки
+            async with AsyncSessionLocal() as session:  # type: AsyncSession
+                result = await session.execute(select(UserSetting))
+                user_settings = result.scalars().all()
+
+            # Шаг 3: отфильтровать и разослать уведомления
+            await filter_and_notify(rates, user_settings)
+
         except Exception as e:
             logger.error(f"Aggregator error: {e}")
-        await asyncio.sleep(10)
+
+        # Подождать перед следующим опросом
+        await asyncio.sleep(POLL_INTERVAL)
