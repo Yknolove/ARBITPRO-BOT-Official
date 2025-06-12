@@ -11,16 +11,16 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from config.config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_URL
 from config.db import engine, Base
-from handlers.default import router          # ← только router
+from handlers.default import router
 from services.aggregator import start_aggregator
 from services.filter_engine import filter_and_notify
 from utils.logger import logger
+
 # Инициализация бота
 bot = Bot(
     token=API_TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
 )
-# Диспетчер с поддержкой FSM
 dp = Dispatcher(storage=MemoryStorage())
 dp.include_router(router)
 
@@ -51,41 +51,24 @@ async def keep_awake():
         await session.close()
         raise
 
-async def refresh_menus():
-    """Обновляет главное меню каждые 30 секунд."""
-    await asyncio.sleep(10)
-    while True:
-        for chat_id, msg_id in list(menu_registry.items()):
-            try:
-                await bot.edit_message_reply_markup(
-                    chat_id=chat_id,
-                    message_id=msg_id,
-                    reply_markup=version_menu()
-                )
-            except:
-                menu_registry.pop(chat_id, None)
-        await asyncio.sleep(30)
-
 async def on_startup():
     await init_db()
     await set_commands()
     await bot.set_webhook(WEBHOOK_URL + WEBHOOK_PATH)
     logger.info(f"Webhook set to {WEBHOOK_URL + WEBHOOK_PATH}")
+    # Запускаем фоновый агрегатор
     asyncio.create_task(start_aggregator(filter_and_notify))
+    # Запускаем self-ping
     asyncio.create_task(keep_awake())
-    asyncio.create_task(refresh_menus())
 
 async def on_shutdown():
     await bot.delete_webhook()
     await bot.session.close()
 
-# Создаем веб-приложение
+# Собираем aiohttp-приложение
 app = web.Application()
-# Регистрируем webhook handler
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-# Endpoint для пинга
 app.router.add_get("/ping", lambda req: web.Response(text="OK"))
-# Хуки старта/остановки
 app.on_startup.append(lambda _: on_startup())
 app.on_shutdown.append(lambda _: on_shutdown())
 
