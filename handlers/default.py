@@ -1,5 +1,5 @@
 from aiogram import Router
-from aiogram.filters import Text
+from aiogram.filters.text import Text
 from aiogram.filters.command import Command
 from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton,
