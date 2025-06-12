@@ -1,5 +1,6 @@
-from aiogram import Router
-from aiogram.filters.text import Text
+# handlers/default.py
+
+from aiogram import Router, F
 from aiogram.filters.command import Command
 from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton,
@@ -58,7 +59,7 @@ async def cmd_start(message: Message, state: FSMContext):
         reply_markup=main_kb
     )
 
-@router.message(Text(equals="🆓 Free Version"))
+@router.message(F.text == "🆓 Free Version")
 async def enter_free(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -66,7 +67,7 @@ async def enter_free(message: Message, state: FSMContext):
         reply_markup=free_kb
     )
 
-@router.message(Text(equals="💎 Pro Version"))
+@router.message(F.text == "💎 Pro Version")
 async def enter_pro(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -74,7 +75,7 @@ async def enter_pro(message: Message, state: FSMContext):
         reply_markup=main_kb
     )
 
-@router.message(Text(equals="🔙 Главное меню"))
+@router.message(F.text == "🔙 Главное меню")
 async def back_main(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -82,7 +83,7 @@ async def back_main(message: Message, state: FSMContext):
         reply_markup=main_kb
     )
 
-@router.message(Text(equals="🏷 Биржа"))
+@router.message(F.text == "🏷 Биржа")
 async def set_exchange_prompt(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -103,7 +104,7 @@ async def process_exchange(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(f"✅ Биржа установлена: {exch}", reply_markup=free_kb)
 
-@router.message(Text(equals="📈 BUY"))
+@router.message(F.text == "📈 BUY")
 async def set_buy_prompt(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -125,7 +126,7 @@ async def process_buy(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(f"✅ BUY ≤ {val}", reply_markup=free_kb)
 
-@router.message(Text(equals="📉 SELL"))
+@router.message(F.text == "📉 SELL")
 async def set_sell_prompt(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -147,7 +148,7 @@ async def process_sell(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(f"✅ SELL ≥ {val}", reply_markup=free_kb)
 
-@router.message(Text(equals="🔢 Лимит"))
+@router.message(F.text == "🔢 Лимит")
 async def set_volume_prompt(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -169,7 +170,7 @@ async def process_volume(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(f"✅ Объём ≤ ${val}", reply_markup=free_kb)
 
-@router.message(Text(equals="📊 Показать настройки"))
+@router.message(F.text == "📊 Показать настройки")
 async def show_settings(message: Message, state: FSMContext):
     await state.clear()
     async with AsyncSessionLocal() as session:
