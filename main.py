@@ -33,7 +33,7 @@ async def init_db():
 async def set_commands():
     """Регистрирует команды в Telegram UI."""
     await bot.set_my_commands([
-        BotCommand("start", "Запустить бота"),
+        BotCommand(command="start", description="Запустить бота"),
     ])
 
 async def keep_awake():
@@ -82,9 +82,11 @@ async def on_shutdown():
 
 # Создаем веб-приложение
 app = web.Application()
-# Регистрируем webhook и /ping
+# Регистрируем webhook handler
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+# Endpoint для пинга
 app.router.add_get("/ping", lambda req: web.Response(text="OK"))
+# Хуки старта/остановки
 app.on_startup.append(lambda _: on_startup())
 app.on_shutdown.append(lambda _: on_shutdown())
 
