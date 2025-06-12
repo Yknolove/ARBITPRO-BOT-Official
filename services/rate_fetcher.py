@@ -4,34 +4,44 @@ import aiohttp
 from utils.logger import logger
 
 async def fetch_rates() -> dict:
-    """
-    Получает актуальные P2P-курсы USDT с бирж Binance, Bybit и Bitget.
-    Возвращает словарь вида:
-      {
-        "binance": {"buy": float, "sell": float},
-        "bybit":   {"buy": float, "sell": float},
-        "bitget":  {"buy": float, "sell": float},
-      }
-    """
-    urls = {
-        "binance": "https://api.binance.com/api/v3/ticker/bookTicker?symbol=USDTUSDT",
-        "bybit":   "https://api.bybit.com/v2/public/tickers?symbol=USDTUSDT",
-        "bitget":  "https://api.bitget.com/api/mix/v1/market/depth?symbol=USDTUSDT&limit=5",
-    }
-
     results = {}
+
     async with aiohttp.ClientSession() as session:
-        for exch, url in urls.items():
-            try:
-                async with session.get(url, timeout=5) as resp:
-                    data = await resp.json()
-                    # Пример парсинга: подставьте нужные поля из API
-                    # Здесь предполагаем, что API возвращают 'bidPrice' и 'askPrice'
-                    buy = float(data.get("bidPrice", data.get("data", [{}])[0].get("bid_price", 0)))
-                    sell = float(data.get("askPrice", data.get("data", [{}])[0].get("ask_price", 0)))
-                    results[exch] = {"buy": buy, "sell": sell}
-            except Exception as e:
-                logger.error(f"Error fetching rates from {exch}: {e}")
-                results[exch] = {"buy": 0.0, "sell": 0.0}
+        # === Binance P2P ===
+        try:
+            url = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"
+            payload = {"asset": "USDT", "fiat": "USD", "tradeType": "BUY", "rows": 5, "page": 1}
+            async with session.post(url, json=payload, timeout=5) as resp:
+                data = await resp.json()
+                price = float(data["data"][0]["adv"]["price"]) if data["data"] else 0.0
+                results["binance"] = {"buy": price, "sell": price}
+        except Exception as e:
+            logger.error(f"Error fetching rates from binance: {e}")
+            results["binance"] = {"buy": 0.0, "sell": 0.0}
+
+        # === Bybit P2P ===
+        try:
+            url = "https://api1.bybit.com/p2p/v1/public/ads"
+            params = {"symbol": "USDT", "side": "BUY", "currency": "USD", "page": 1, "limit": 1}
+            async with session.get(url, params=params, timeout=5) as resp:
+                data = await resp.json()
+                price = float(data["result"]["list"][0]["price"]) if data["result"]["list"] else 0.0
+                results["bybit"] = {"buy": price, "sell": price}
+        except Exception as e:
+            logger.error(f"Error fetching rates from bybit: {e}")
+            results["bybit"] = {"buy": 0.0, "sell": 0.0}
+
+        # === Bitget P2P ===
+        try:
+            url = "https://api.bitget.com/api/p2p/v1/public/offers"
+            params = {"symbol": "USDT_USD", "type": "BUY", "pageSize": 1, "pageNo": 1}
+            async with session.get(url, params=params, timeout=5) as resp:
+                data = await resp.json()
+                offers = data.get("data", [])
+                price = float(offers[0]["price"]) if offers else 0.0
+                results["bitget"] = {"buy": price, "sell": price}
+        except Exception as e:
+            logger.error(f"Error fetching rates from bitget: {e}")
+            results["bitget"] = {"buy": 0.0, "sell": 0.0}
 
     return results
