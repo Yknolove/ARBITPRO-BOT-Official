@@ -1,3 +1,5 @@
+# main.py
+
 import os
 import asyncio
 import aiohttp
@@ -13,7 +15,6 @@ from config.config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_URL, PORT
 from config.db import engine, Base
 from handlers.default import router
 from services.aggregator import start_aggregator
-from services.filter_engine import filter_and_notify
 from utils.logger import logger
 
 bot = Bot(
@@ -52,7 +53,8 @@ async def on_startup():
     await set_commands()
     await bot.set_webhook(WEBHOOK_URL + WEBHOOK_PATH)
     logger.info(f"Webhook set to {WEBHOOK_URL + WEBHOOK_PATH}")
-    asyncio.create_task(start_aggregator(filter_and_notify))
+    # Запускаем агрегатор без аргументов
+    asyncio.create_task(start_aggregator())
     asyncio.create_task(keep_awake())
 
 async def on_shutdown():
