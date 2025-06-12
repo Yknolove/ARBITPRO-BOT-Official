@@ -1,5 +1,3 @@
-# services/rate_fetcher.py
-
 import aiohttp
 from utils.logger import logger
 
@@ -10,10 +8,11 @@ async def fetch_rates() -> dict:
         # === Binance P2P ===
         try:
             url = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"
-            payload = {"asset": "USDT", "fiat": "USD", "tradeType": "BUY", "rows": 5, "page": 1}
+            payload = {"asset": "USDT", "fiat": "USD", "tradeType": "BUY", "rows": 1, "page": 1}
             async with session.post(url, json=payload, timeout=5) as resp:
                 data = await resp.json()
-                price = float(data["data"][0]["adv"]["price"]) if data["data"] else 0.0
+                advs = data.get("data", [])
+                price = float(advs[0]["adv"]["price"]) if advs else 0.0
                 results["binance"] = {"buy": price, "sell": price}
         except Exception as e:
             logger.error(f"Error fetching rates from binance: {e}")
@@ -21,11 +20,12 @@ async def fetch_rates() -> dict:
 
         # === Bybit P2P ===
         try:
-            url = "https://api1.bybit.com/p2p/v1/public/ads"
+            url = "https://api.bybit.com/p2p/v1/public/ads"
             params = {"symbol": "USDT", "side": "BUY", "currency": "USD", "page": 1, "limit": 1}
             async with session.get(url, params=params, timeout=5) as resp:
                 data = await resp.json()
-                price = float(data["result"]["list"][0]["price"]) if data["result"]["list"] else 0.0
+                ads = data.get("result", {}).get("list", [])
+                price = float(ads[0]["price"]) if ads else 0.0
                 results["bybit"] = {"buy": price, "sell": price}
         except Exception as e:
             logger.error(f"Error fetching rates from bybit: {e}")
