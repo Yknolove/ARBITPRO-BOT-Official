@@ -16,7 +16,6 @@ from services.aggregator import start_aggregator
 from services.filter_engine import filter_and_notify
 from utils.logger import logger
 
-# Инициализация бота
 bot = Bot(
     token=API_TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
@@ -25,27 +24,21 @@ dp = Dispatcher(storage=MemoryStorage())
 dp.include_router(router)
 
 async def init_db():
-    """Создает таблицы при старте."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 async def set_commands():
-    """Регистрирует команды в Telegram UI."""
     await bot.set_my_commands([
         BotCommand(command="start", description="Запустить бота"),
     ])
 
 async def keep_awake():
-    """Пингует свой /ping, чтобы инстанс не засыпал."""
     await asyncio.sleep(5)
     url = WEBHOOK_URL + "/ping"
     session = aiohttp.ClientSession()
     try:
         while True:
-            try:
-                await session.get(url)
-            except:
-                pass
+            await session.get(url, ignore_errors=True)
             await asyncio.sleep(30)
     except asyncio.CancelledError:
         await session.close()
@@ -56,16 +49,13 @@ async def on_startup():
     await set_commands()
     await bot.set_webhook(WEBHOOK_URL + WEBHOOK_PATH)
     logger.info(f"Webhook set to {WEBHOOK_URL + WEBHOOK_PATH}")
-    # Запускаем фоновый агрегатор
     asyncio.create_task(start_aggregator(filter_and_notify))
-    # Запускаем self-ping
     asyncio.create_task(keep_awake())
 
 async def on_shutdown():
     await bot.delete_webhook()
     await bot.session.close()
 
-# Собираем aiohttp-приложение
 app = web.Application()
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 app.router.add_get("/ping", lambda req: web.Response(text="OK"))
