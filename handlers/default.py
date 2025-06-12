@@ -19,21 +19,31 @@ class FreeSettingsStates(StatesGroup):
     sell = State()
     volume = State()
 
-# Клавиатуры
+# Главное меню
 main_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton("🆓 Free Version")],
-        [KeyboardButton("💎 Pro Version")],
+        [KeyboardButton(text="🆓 Free Version")],
+        [KeyboardButton(text="💎 Pro Version")],
     ],
     resize_keyboard=True,
     one_time_keyboard=False
 )
 
+# Меню Free-версии
 free_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton("🏷 Биржа"), KeyboardButton("📈 BUY")],
-        [KeyboardButton("📉 SELL"), KeyboardButton("🔢 Лимит")],
-        [KeyboardButton("📊 Показать настройки"), KeyboardButton("🔙 Главное меню")],
+        [
+            KeyboardButton(text="🏷 Биржа"),
+            KeyboardButton(text="📈 BUY")
+        ],
+        [
+            KeyboardButton(text="📉 SELL"),
+            KeyboardButton(text="🔢 Лимит")
+        ],
+        [
+            KeyboardButton(text="📊 Показать настройки"),
+            KeyboardButton(text="🔙 Главное меню")
+        ],
     ],
     resize_keyboard=True,
     one_time_keyboard=False
@@ -70,7 +80,6 @@ async def enter_pro(message: Message):
 async def back_main(message: Message):
     await message.answer("Вы вернулись в главное меню:", reply_markup=main_kb)
 
-# Обработчики Free-меню
 @router.message(lambda msg: msg.text == "🏷 Биржа")
 async def set_exchange_prompt(message: Message, state: FSMContext):
     await message.answer("Введите биржу (binance, bybit, okx, bitget):", reply_markup=ReplyKeyboardRemove())
@@ -97,7 +106,7 @@ async def set_buy_prompt(message: Message, state: FSMContext):
 async def process_buy(message: Message, state: FSMContext):
     try:
         val = float(message.text)
-    except:
+    except ValueError:
         return await message.answer("Неверный формат.")
     async with AsyncSessionLocal() as session:
         st = await get_or_create_setting(session, message.from_user.id)
@@ -115,7 +124,7 @@ async def set_sell_prompt(message: Message, state: FSMContext):
 async def process_sell(message: Message, state: FSMContext):
     try:
         val = float(message.text)
-    except:
+    except ValueError:
         return await message.answer("Неверный формат.")
     async with AsyncSessionLocal() as session:
         st = await get_or_create_setting(session, message.from_user.id)
@@ -133,7 +142,7 @@ async def set_volume_prompt(message: Message, state: FSMContext):
 async def process_volume(message: Message, state: FSMContext):
     try:
         val = float(message.text)
-    except:
+    except ValueError:
         return await message.answer("Неверный формат.")
     async with AsyncSessionLocal() as session:
         st = await get_or_create_setting(session, message.from_user.id)
