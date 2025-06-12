@@ -1,71 +1,59 @@
 # main.py
-
-import os
-import asyncio
-import aiohttp
-from aiohttp import web
 from aiogram import Bot, Dispatcher
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
-from aiogram.types import BotCommand
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.client.session import AiohttpSession, DefaultBotProperties
+import asyncio
 
-from config.config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_URL, PORT
-from config.db import engine, Base
-from handlers.default import router
-from services.aggregator import start_aggregator
-from utils.logger import logger
+API_TOKEN = "ВАШ_ТОКЕН_ЗДЕСЬ"
 
-bot = Bot(
-    token=API_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+# Инициализация бота
+session = AiohttpSession()
+bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode="HTML"), session=session)
+dp = Dispatcher()
+
+# Настройка главного меню
+main_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton("🆓 Free Version")],
+        [KeyboardButton("⚙️ Settings")],
+    ],
+    resize_keyboard=True,
+    is_persistent=True,
+    input_field_placeholder="Выберите раздел",
 )
-dp = Dispatcher(storage=MemoryStorage())
-dp.include_router(router)
 
-async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+@dp.message.register(commands=["start"])
+async def cmd_start(message: Message):
+    await message.answer(
+        text=(
+            "👋 Добро пожаловать!\n"
+            "<b>Free Version:</b> мониторинг одной биржи P2P (Binance, Bybit, OKX, Bitget).\n"
+            "Введите /help для инструкций."
+        ),
+        reply_markup=main_kb
+    )
 
-async def set_commands():
-    await bot.set_my_commands([
-        BotCommand(command="start", description="Запустить бота"),
-    ])
+@dp.message.register(lambda m: m.text == "🆓 Free Version")
+async def free_version(message: Message):
+    await message.answer(
+        text="Вы выбрали Free Version. Выберите биржу:\n/binance, /bybit, /okx, /bitget",
+        reply_markup=main_kb
+    )
 
-async def keep_awake():
-    await asyncio.sleep(5)
-    url = WEBHOOK_URL + "/ping"
-    session = aiohttp.ClientSession()
+@dp.message.register(commands=["binance", "bybit", "okx", "bitget"])
+async def select_exchange(message: Message):
+    exch = message.text.lstrip("/").capitalize()
+    await message.answer(f"Настроен мониторинг биржи: {exch}", reply_markup=main_kb)
+
+@dp.message.register(lambda m: m.text == "⚙️ Settings")
+async def settings(message: Message):
+    await message.answer("Настройки пока недоступны.", reply_markup=main_kb)
+
+async def main():
     try:
-        while True:
-            try:
-                await session.get(url)
-            except:
-                pass
-            await asyncio.sleep(30)
-    except asyncio.CancelledError:
+        await dp.start_polling(bot)
+    finally:
         await session.close()
-        raise
-
-async def on_startup():
-    await init_db()
-    await set_commands()
-    await bot.set_webhook(WEBHOOK_URL + WEBHOOK_PATH)
-    logger.info(f"Webhook set to {WEBHOOK_URL + WEBHOOK_PATH}")
-    # Запускаем агрегатор без аргументов
-    asyncio.create_task(start_aggregator())
-    asyncio.create_task(keep_awake())
-
-async def on_shutdown():
-    await bot.delete_webhook()
-    await bot.session.close()
-
-app = web.Application()
-SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-app.router.add_get("/ping", lambda req: web.Response(text="OK"))
-app.on_startup.append(lambda _: on_startup())
-app.on_shutdown.append(lambda _: on_shutdown())
 
 if __name__ == "__main__":
-    web.run_app(app, host="0.0.0.0", port=PORT)
+    asyncio.run(main())
