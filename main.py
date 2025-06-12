@@ -9,7 +9,7 @@ from aiogram.types import BotCommand
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from config.config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_URL
+from config.config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_URL, PORT
 from config.db import engine, Base
 from handlers.default import router
 from services.aggregator import start_aggregator
@@ -38,7 +38,10 @@ async def keep_awake():
     session = aiohttp.ClientSession()
     try:
         while True:
-            await session.get(url, ignore_errors=True)
+            try:
+                await session.get(url)
+            except:
+                pass
             await asyncio.sleep(30)
     except asyncio.CancelledError:
         await session.close()
@@ -63,5 +66,4 @@ app.on_startup.append(lambda _: on_startup())
 app.on_shutdown.append(lambda _: on_shutdown())
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8000))
-    web.run_app(app, host="0.0.0.0", port=port)
+    web.run_app(app, host="0.0.0.0", port=PORT)
