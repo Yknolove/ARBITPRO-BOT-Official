@@ -1,8 +1,8 @@
 from aiogram import Router
 from aiogram.filters.command import Command
 from aiogram.types import (
-    InlineKeyboardMarkup, InlineKeyboardButton,
-    Message, CallbackQuery
+    ReplyKeyboardMarkup, KeyboardButton,
+    Message, ReplyKeyboardRemove
 )
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
@@ -10,9 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.db import AsyncSessionLocal
 from models.user_setting import UserSetting
-
-# Регистр сообщений меню: chat_id -> message_id
-menu_registry: dict[int, int] = {}
 
 router = Router()
 
@@ -22,25 +19,25 @@ class FreeSettingsStates(StatesGroup):
     sell = State()
     volume = State()
 
-def version_menu() -> InlineKeyboardMarkup:
-    kb = InlineKeyboardMarkup(inline_keyboard=[], row_width=2)
-    kb.add(
-        InlineKeyboardButton("🆓 Free Version", callback_data="version:free"),
-        InlineKeyboardButton("💎 Pro Version",  callback_data="version:pro"),
-    )
-    return kb
+# Клавиатуры
+main_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton("🆓 Free Version")],
+        [KeyboardButton("💎 Pro Version")],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=False
+)
 
-def free_menu() -> InlineKeyboardMarkup:
-    kb = InlineKeyboardMarkup(inline_keyboard=[], row_width=2)
-    kb.add(
-        InlineKeyboardButton("🏷 Биржа", callback_data="free:exchange"),
-        InlineKeyboardButton("📈 BUY ≤ ...", callback_data="free:buy"),
-        InlineKeyboardButton("📉 SELL ≥ ...", callback_data="free:sell"),
-        InlineKeyboardButton("🔢 Лимит", callback_data="free:volume"),
-        InlineKeyboardButton("📊 Показать настройки", callback_data="free:show"),
-        InlineKeyboardButton("🔙 Назад", callback_data="version:main"),
-    )
-    return kb
+free_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton("🏷 Биржа"), KeyboardButton("📈 BUY")],
+        [KeyboardButton("📉 SELL"), KeyboardButton("🔢 Лимит")],
+        [KeyboardButton("📊 Показать настройки"), KeyboardButton("🔙 Главное меню")],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=False
+)
 
 async def get_or_create_setting(session: AsyncSession, user_id: int) -> UserSetting:
     st = await session.get(UserSetting, user_id)
@@ -53,66 +50,31 @@ async def get_or_create_setting(session: AsyncSession, user_id: int) -> UserSett
 
 @router.message(Command("start"))
 async def cmd_start(message: Message):
-    sent = await message.answer(
+    await message.answer(
         "👋 Добро пожаловать в ArbitPRO!\nВыберите версию:",
-        reply_markup=version_menu()
+        reply_markup=main_kb
     )
-    menu_registry[sent.chat.id] = sent.message_id
 
-@router.callback_query(lambda c: c.data.startswith("version:"))
-async def cb_version(c: CallbackQuery, state: FSMContext):
-    action = c.data.split(":", 1)[1]
-    if action == "main":
-        text = "Выберите версию:"
-        kb = version_menu()
-    elif action == "free":
-        text = (
-            "🆓 Free Version Menu:\n"
-            "• Мониторинг одной биржи P2P\n"
-            "• BUY/SELL пороги\n"
-            "• Лимит объёма"
-        )
-        kb = free_menu()
-    else:
-        await c.answer("Pro версия скоро будет доступна!", show_alert=True)
-        return
+@router.message(lambda msg: msg.text == "🆓 Free Version")
+async def enter_free(message: Message):
+    await message.answer(
+        "🆓 Free Version Menu:\nВыберите действие:",
+        reply_markup=free_kb
+    )
 
-    sent = await c.message.edit_text(text, reply_markup=kb)
-    menu_registry[sent.chat.id] = sent.message_id
-    await c.answer()
+@router.message(lambda msg: msg.text == "💎 Pro Version")
+async def enter_pro(message: Message):
+    await message.answer("💎 Pro версия скоро будет доступна!", reply_markup=main_kb)
 
-@router.callback_query(lambda c: c.data.startswith("free:"))
-async def cb_free(c: CallbackQuery, state: FSMContext):
-    action = c.data.split(":", 1)[1]
-    if action == "exchange":
-        await c.message.edit_text("Введите биржу (binance, bybit, okx, bitget):")
-        await state.set_state(FreeSettingsStates.exchange)
-    elif action == "buy":
-        await c.message.edit_text("Введите BUY-порог (число), например: 41.20:")
-        await state.set_state(FreeSettingsStates.buy)
-    elif action == "sell":
-        await c.message.edit_text("Введите SELL-порог (число), например: 42.50:")
-        await state.set_state(FreeSettingsStates.sell)
-    elif action == "volume":
-        await c.message.edit_text("Введите лимит объёма (число долларов):")
-        await state.set_state(FreeSettingsStates.volume)
-    elif action == "show":
-        async with AsyncSessionLocal() as session:
-            st = await get_or_create_setting(session, c.from_user.id)
-        text = (
-            f"📊 Настройки Free Version:\n"
-            f"Биржа: {st.exchange}\n"
-            f"BUY ≤ {st.buy_threshold or '-'}\n"
-            f"SELL ≥ {st.sell_threshold or '-'}\n"
-            f"Объём ≤ ${st.volume_limit or '-'}"
-        )
-        sent = await c.message.edit_text(text, reply_markup=free_menu())
-        menu_registry[sent.chat.id] = sent.message_id
-    elif action == "main":
-        sent = await c.message.edit_text("Выберите версию:", reply_markup=version_menu())
-        menu_registry[sent.chat.id] = sent.message_id
+@router.message(lambda msg: msg.text == "🔙 Главное меню")
+async def back_main(message: Message):
+    await message.answer("Вы вернулись в главное меню:", reply_markup=main_kb)
 
-    await c.answer()
+# Обработчики Free-меню
+@router.message(lambda msg: msg.text == "🏷 Биржа")
+async def set_exchange_prompt(message: Message, state: FSMContext):
+    await message.answer("Введите биржу (binance, bybit, okx, bitget):", reply_markup=ReplyKeyboardRemove())
+    await state.set_state(FreeSettingsStates.exchange)
 
 @router.message(FreeSettingsStates.exchange)
 async def process_exchange(message: Message, state: FSMContext):
@@ -124,49 +86,71 @@ async def process_exchange(message: Message, state: FSMContext):
         st.exchange = exch
         await session.commit()
     await state.clear()
-    sent = await message.answer(f"✅ Биржа: {exch}", reply_markup=free_menu())
-    menu_registry[sent.chat.id] = sent.message_id
+    await message.answer(f"✅ Биржа: {exch}", reply_markup=free_kb)
+
+@router.message(lambda msg: msg.text == "📈 BUY")
+async def set_buy_prompt(message: Message, state: FSMContext):
+    await message.answer("Введите BUY-порог (число), например: 41.20:", reply_markup=ReplyKeyboardRemove())
+    await state.set_state(FreeSettingsStates.buy)
 
 @router.message(FreeSettingsStates.buy)
 async def process_buy(message: Message, state: FSMContext):
     try:
         val = float(message.text)
-    except ValueError:
+    except:
         return await message.answer("Неверный формат.")
     async with AsyncSessionLocal() as session:
         st = await get_or_create_setting(session, message.from_user.id)
         st.buy_threshold = val
         await session.commit()
     await state.clear()
-    sent = await message.answer(f"✅ BUY ≤ {val}", reply_markup=free_menu())
-    menu_registry[sent.chat.id] = sent.message_id
+    await message.answer(f"✅ BUY ≤ {val}", reply_markup=free_kb)
+
+@router.message(lambda msg: msg.text == "📉 SELL")
+async def set_sell_prompt(message: Message, state: FSMContext):
+    await message.answer("Введите SELL-порог (число), например: 42.50:", reply_markup=ReplyKeyboardRemove())
+    await state.set_state(FreeSettingsStates.sell)
 
 @router.message(FreeSettingsStates.sell)
 async def process_sell(message: Message, state: FSMContext):
     try:
         val = float(message.text)
-    except ValueError:
+    except:
         return await message.answer("Неверный формат.")
     async with AsyncSessionLocal() as session:
         st = await get_or_create_setting(session, message.from_user.id)
         st.sell_threshold = val
         await session.commit()
     await state.clear()
-    sent = await message.answer(f"✅ SELL ≥ {val}", reply_markup=free_menu())
-    menu_registry[sent.chat.id] = sent.message_id
+    await message.answer(f"✅ SELL ≥ {val}", reply_markup=free_kb)
+
+@router.message(lambda msg: msg.text == "🔢 Лимит")
+async def set_volume_prompt(message: Message, state: FSMContext):
+    await message.answer("Введите лимит объёма (число долларов):", reply_markup=ReplyKeyboardRemove())
+    await state.set_state(FreeSettingsStates.volume)
 
 @router.message(FreeSettingsStates.volume)
 async def process_volume(message: Message, state: FSMContext):
     try:
         val = float(message.text)
-    except ValueError:
+    except:
         return await message.answer("Неверный формат.")
     async with AsyncSessionLocal() as session:
         st = await get_or_create_setting(session, message.from_user.id)
         st.volume_limit = val
         await session.commit()
     await state.clear()
-    sent = await message.answer(f"✅ Объём ≤ ${val}", reply_markup=free_menu())
-    menu_registry[sent.chat.id] = sent.message_id
-    sent = await message.answer(f"✅ Объём ≤ ${val}", reply_markup=free_menu())
-    menu_registry[sent.chat.id] = sent.message_id
+    await message.answer(f"✅ Объём ≤ ${val}", reply_markup=free_kb)
+
+@router.message(lambda msg: msg.text == "📊 Показать настройки")
+async def show_settings(message: Message):
+    async with AsyncSessionLocal() as session:
+        st = await get_or_create_setting(session, message.from_user.id)
+    await message.answer(
+        f"📊 Настройки Free Version:\n"
+        f"Биржа: {st.exchange}\n"
+        f"BUY ≤ {st.buy_threshold or '-'}\n"
+        f"SELL ≥ {st.sell_threshold or '-'}\n"
+        f"Объём ≤ ${st.volume_limit or '-'}",
+        reply_markup=free_kb
+    )
