@@ -2,19 +2,17 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Копируем только файл с зависимостями
+# 1) Копируем зависимости и устанавливаем их в venv
 COPY requirements.txt .
-
-# Создаём виртуальное окружение и ставим зависимости
 RUN python -m venv /opt/venv \
  && /opt/venv/bin/pip install --upgrade pip setuptools wheel \
  && /opt/venv/bin/pip install -r requirements.txt
 
-# Копируем весь проект
+# 2) Копируем всё остальное
 COPY . .
 
-# Делаем /opt/venv/bin доступным
+# 3) Делаем venv-энвайрон доступным
 ENV PATH="/opt/venv/bin:$PATH"
 
-# При запуске контейнера — стартуем бота
+# 4) Запуск основного скрипта
 CMD ["python", "main.py"]
