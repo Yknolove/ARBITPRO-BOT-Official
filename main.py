@@ -1,69 +1,46 @@
-import os
 import asyncio
-import aiohttp
 from aiohttp import web
-from aiogram import Bot, Dispatcher
+from aiogram import Dispatcher, Bot
 from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
-from aiogram.types import BotCommand
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.client.session.aiohttp import AiohttpSession
 
-from config.config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_URL
-from config.db import engine, Base
-from handlers.default import router          # ← важно именно так
-from services.aggregator import start_aggregator
-from services.filter_engine import filter_and_notify
-from utils.logger import logger
+from config.config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_URL, PORT
+from handlers.default import router
 
-bot = Bot(
-    token=API_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
-)
-dp = Dispatcher(storage=MemoryStorage())
+async def on_startup(bot: Bot):
+    # Устанавливаем вебхук
+    await bot.delete_webhook(drop_pending_updates=True)
+    await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True)
 
-# Подключаем наш router из handlers/default.py
-dp.include_router(router)
-
-async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-async def set_commands():
-    await bot.set_my_commands([
-        BotCommand("start", "Запустить бота"),
-    ])
-
-async def keep_awake():
-    await asyncio.sleep(5)
-    url = WEBHOOK_URL + "/ping"
-    session = aiohttp.ClientSession()
-    try:
-        while True:
-            await session.get(url)
-            await asyncio.sleep(30)
-    except asyncio.CancelledError:
-        await session.close()
-        raise
-
-async def on_startup():
-    await init_db()
-    await set_commands()
-    await bot.set_webhook(WEBHOOK_URL + WEBHOOK_PATH)
-    logger.info(f"Webhook set to {WEBHOOK_URL + WEBHOOK_PATH}")
-    asyncio.create_task(start_aggregator(filter_and_notify))
-    asyncio.create_task(keep_awake())
-
-async def on_shutdown():
-    await bot.delete_webhook()
+async def on_shutdown(bot: Bot):
     await bot.session.close()
 
-app = web.Application()
-SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-app.router.add_get("/ping", lambda req: web.Response(text="OK"))
-app.on_startup.append(lambda _: on_startup())
-app.on_shutdown.append(lambda _: on_shutdown())
+async def run_app():
+    session = AiohttpSession()
+    bot = Bot(
+        token=API_TOKEN,
+        session=session,
+        default=DefaultBotProperties(parse_mode="HTML")
+    )
+    dp = Dispatcher()
+    dp.include_router(router)
+
+    await on_startup(bot)
+    app = web.Application()
+    app.router.add_post(WEBHOOK_PATH, dp.webhook_handler)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+
+    print(f"🚀 Running on 0.0.0.0:{PORT}, webhook={WEBHOOK_URL}")
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    finally:
+        await on_shutdown(bot)
+        await runner.cleanup()
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8000))
-    web.run_app(app, host="0.0.0.0", port=port)
+    asyncio.run(run_app())
