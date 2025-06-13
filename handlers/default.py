@@ -1,10 +1,12 @@
+# handlers/default.py
+
 from aiogram import Router
-from aiogram.filters import CommandStart, CallbackQuery  # или Command
-from aiogram.types import Message, CallbackQuery as CQ, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.filters import CommandStart
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 router = Router()
 
-# Главное меню — клавиатура с версиями
+# Главное меню — инлайн-кнопки версий
 version_menu = InlineKeyboardMarkup(
     inline_keyboard=[
         [
@@ -21,13 +23,12 @@ async def cmd_start(message: Message):
         reply_markup=version_menu
     )
 
-# Обработчик нажатия “Free Version”
+# Обработка нажатия “Free Version”
 @router.callback_query(lambda c: c.data == "ver_free")
-async def cb_free(c: CQ):
-    # Здесь отображаете интерфейс Free-версии
+async def cb_free(c: CallbackQuery):
     free_kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [ InlineKeyboardButton(text="⚙️ Настройки", callback_data="free_settings") ]
+            [InlineKeyboardButton(text="⚙️ Настройки", callback_data="free_settings")]
         ]
     )
     await c.message.edit_text(
@@ -39,9 +40,9 @@ async def cb_free(c: CQ):
         parse_mode="Markdown",
         reply_markup=free_kb
     )
-    await c.answer()  # чтобы убрать “часики” у кнопки
+    await c.answer()  # чтобы Telegram убрал «часики»
 
-# Обработчик нажатия “Pro Version”
+# Обработка нажатия “Pro Version”
 @router.callback_query(lambda c: c.data == "ver_pro")
-async def cb_pro(c: CQ):
+async def cb_pro(c: CallbackQuery):
     await c.answer("💎 Pro Version пока недоступна", show_alert=True)
