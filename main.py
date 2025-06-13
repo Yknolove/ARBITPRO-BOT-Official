@@ -1,28 +1,41 @@
-import asyncio
-import logging
 import os
+import logging
+import asyncio
 
-from aiogram import Bot, Dispatcher
-from aiogram.client.default import DefaultBotProperties
+from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
+from aiogram.fsm.storage.memory import MemoryStorage
 
-from config.config import API_TOKEN
-from handlers.default import router
+# Необязательно: если хотите хранить токен в файле .env,
+# раскомментируйте и установите python-dotenv (pip install python-dotenv):
+# from dotenv import load_dotenv
+# load_dotenv()  # загрузит переменные из .env в корне проекта
 
+# Получаем токен
+API_TOKEN = os.getenv("API_TOKEN")
+if not API_TOKEN:
+    raise RuntimeError("❗ Переменная окружения API_TOKEN не установлена")
+
+# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-async def main():
-    # Создаём бота с HTML-парсингом
-    bot = Bot(
-        token=API_TOKEN,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
-    )
-    dp = Dispatcher()
-    dp.include_router(router)
+# Инициализация бота и диспетчера
+bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
+dp = Dispatcher(storage=MemoryStorage())
 
-    logging.info("🚀 Запуск polling...")
-    # Запускаем долгий polling
+
+@dp.message()
+async def echo_handler(message: types.Message) -> None:
+    await message.answer(f"👋 Привет! Ты написал: {message.text}")
+
+
+async def main() -> None:
+    logging.info("🚀 Запуск бота...")
     await dp.start_polling(bot)
 
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logging.info("🛑 Бот остановлен.")
