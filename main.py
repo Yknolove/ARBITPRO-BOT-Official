@@ -8,7 +8,7 @@ from aiogram.enums import ParseMode
 
 from handlers.default import router  # ваш router с командами
 
-API_TOKEN = os.getenv("API_TOKEN")  # убедитесь, что переменная окружения задана
+API_TOKEN = os.getenv(8131766932:AAFPfxgWtoY7fejhp5dofLsz0q7701L4GAI)  # убедитесь, что переменная окружения задана
 
 logging.basicConfig(level=logging.INFO)
 
