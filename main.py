@@ -1,55 +1,45 @@
-import logging
-import sys
-from os import getenv
-
+import asyncio
 from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiogram.client.session.aiohttp import AiohttpSession
 
-# --- your config imports (adjust paths!) ---
-# from config.config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_URL, PORT
-API_TOKEN = getenv("API_TOKEN")
-WEBHOOK_HOST = getenv("WEBHOOK_HOST")        # e.g. https://yourdomain.com
-WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
-WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
-PORT = int(getenv("PORT", 8000))
-# -------------------------------------------
+from config.config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_URL, PORT
+from handlers.default import router
 
-# Logging
-logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+async def on_startup(bot: Bot):
+    await bot.delete_webhook(drop_pending_updates=True)
+    await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True)
 
-# 1. Initialize Bot with default properties (parse_mode, etc.)
-bot = Bot(
-    token=API_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-)  :contentReference[oaicite:0]{index=0}
+async def on_shutdown(bot: Bot):
+    await bot.session.close()
 
-# 2. Create Dispatcher and include your routers/handlers
-dp = Dispatcher()
-# e.g. dp.include_router(your_router)
+async def run_app():
+    session = AiohttpSession()
+    bot = Bot(
+        token=API_TOKEN,
+        session=session,
+        default=DefaultBotProperties(parse_mode="HTML")
+    )
+    dp = Dispatcher()
+    dp.include_router(router)
 
-# 3. Register startup hook to set the webhook on Telegram
-async def on_startup(bot: Bot) -> None:
-    await bot.set_webhook(WEBHOOK_URL)  :contentReference[oaicite:1]{index=1}
+    await on_startup(bot)
+    app = web.Application()
+    app.router.add_post(WEBHOOK_PATH, dp.startup)
 
-dp.startup.register(on_startup)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
 
-# 4. Build aiohttp Application
-app = web.Application()
+    print(f"🚀 Running on 0.0.0.0:{PORT}, webhook={WEBHOOK_URL}")
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    finally:
+        await on_shutdown(bot)
+        await runner.cleanup()
 
-# 5. Mount the SimpleRequestHandler (replaces dp.webhook_handler)
-webhook_handler = SimpleRequestHandler(
-    dispatcher=dp,
-    bot=bot,
-    # secret_token=<opt>,  # if you set a secret token in set_webhook
-)
-webhook_handler.register(app, path=WEBHOOK_PATH)  :contentReference[oaicite:2]{index=2}
-
-# 6. Tie in dispatcher startup/shutdown to the web app
-setup_application(app, dp, bot=bot)  :contentReference[oaicite:3]{index=3}
-
-# 7. Run!
 if __name__ == "__main__":
-    web.run_app(app, host="0.0.0.0", port=PORT)  :contentReference[oaicite:4]{index=4}
+    asyncio.run(run_app())
