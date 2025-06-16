@@ -35,8 +35,6 @@ async def show_history(message: Message):
         return
 
     text = "📈 <b>История сделок:</b>\n\n"
-
-"
     for i, record in enumerate(user_history[-10:], 1):
         text += f"{i}. {record}\n"
 
