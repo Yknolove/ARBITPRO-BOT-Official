@@ -1,6 +1,6 @@
 import asyncio
-from services.rate_fetcher import RateFetcher
 import aiohttp
+from services.rate_fetcher import RateFetcher
 import logging
 
 async def start_aggregator(bot):
@@ -8,12 +8,12 @@ async def start_aggregator(bot):
         try:
             async with aiohttp.ClientSession() as session:
                 rf = RateFetcher(session)
-                bybit_data = await rf.fetch_bybit()
+                tickers = await rf.fetch_bybit()
+                print(f"🟢 Bybit вернул {len(tickers)} тикеров")
 
-                # Пример: логика уведомлений
-                # await bot.send_message(chat_id, "Новая сделка!")
+                # Здесь можно вставить фильтрацию и уведомления
 
         except Exception as e:
-            logging.error("Ошибка в агрегаторе", exc_info=e)
+            logging.error("❌ Ошибка в агрегаторе", exc_info=e)
 
         await asyncio.sleep(15)
