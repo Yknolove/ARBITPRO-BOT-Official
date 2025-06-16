@@ -13,6 +13,7 @@ from handlers.calc import router as calc_router
 from handlers.history import router as history_router
 from handlers.referral import router as referral_router
 from handlers.payment import router as payment_router
+from handlers.arbitrage_dynamic import router as arbitrage_router
 from services.aggregator import start_aggregator
 
 load_dotenv()
@@ -34,6 +35,7 @@ dp.include_router(calc_router)
 dp.include_router(history_router)
 dp.include_router(referral_router)
 dp.include_router(payment_router)
+dp.include_router(arbitrage_router)
 
 async def on_startup(app: web.Application):
     await bot.set_webhook(WEBHOOK_URL)
