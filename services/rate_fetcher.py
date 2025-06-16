@@ -12,7 +12,9 @@ class RateFetcher:
                 if r.status != 200:
                     raise Exception(f"Bybit responded with status {r.status}")
                 data = await r.json()
-                return data.get("result", {}).get("list", [])
+                tickers = data.get("result", {}).get("list", [])
+                print(f"✅ Загружено {len(tickers)} тикеров с Bybit")
+                return tickers
         except Exception as e:
             print(f"❌ Ошибка Bybit: {e}")
             return []
