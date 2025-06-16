@@ -1,44 +1,44 @@
 import os
 import asyncio
 from aiohttp import web
+from dotenv import load_dotenv
 
 from aiogram import Bot, Dispatcher
-from aiogram.filters import Command
-from dotenv import load_dotenv
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+
+from handlers.default import router as default_router
+from handlers.filters import router as filters_router
+
 load_dotenv()
 
-from handlers.default import router  # ваш роутер с командами и callback'ами
-
-API_TOKEN    = os.getenv("API_TOKEN")
-WEBHOOK_URL  = os.getenv("WEBHOOK_URL")
+API_TOKEN = os.getenv("API_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 WEBHOOK_PATH = "/webhook"
-PORT         = int(os.getenv("PORT", 8000))
+PORT = int(os.getenv("PORT", 8000))
 
 if not API_TOKEN or not WEBHOOK_URL:
     raise RuntimeError("❗ Установите в окружении API_TOKEN и WEBHOOK_URL")
 
 bot = Bot(token=API_TOKEN)
-dp  = Dispatcher()
+dp = Dispatcher(storage=MemoryStorage())
 
-# подключаем все ваши хэндлеры
-dp.include_router(router)
+dp.include_router(default_router)
+dp.include_router(filters_router)
 
 async def on_startup(app: web.Application):
-    # ставим webhook у Telegram
     await bot.set_webhook(WEBHOOK_URL)
+    print("✅ Webhook установлен")
 
 async def on_shutdown(app: web.Application):
-    # убираем webhook и закрываем сессию
     await bot.delete_webhook()
     await bot.session.close()
+    print("⛔ Webhook отключён")
 
-# создаём aiohttp-приложение и прокидываем туда aiogram
 app = web.Application()
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
 
-# всё пришедшие POST-запросы на /webhook обрабатывает aiogram
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 setup_application(app, dp, bot=bot)
 
