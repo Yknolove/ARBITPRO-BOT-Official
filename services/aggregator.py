@@ -10,7 +10,7 @@ HISTORY_FILE = "history.json"
 
 async def start_aggregator(bot: Bot):
     logging.basicConfig(level=logging.INFO)
-    rf = RateFetcher()
+    rf = RateFetcher(session)
 
     while True:
         try:
