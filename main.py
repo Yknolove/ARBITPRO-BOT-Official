@@ -1,7 +1,7 @@
 import os
 import asyncio
 from aiohttp import web
-
+from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
 from handlers.default import router  # ваш роутер с командами и callback'ами
