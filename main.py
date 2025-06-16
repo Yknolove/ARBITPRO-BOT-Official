@@ -9,6 +9,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 
 from handlers.default import router as default_router
 from handlers.filters import router as filters_router
+from services.aggregator import start_aggregator
 
 load_dotenv()
 
@@ -28,6 +29,7 @@ dp.include_router(filters_router)
 
 async def on_startup(app: web.Application):
     await bot.set_webhook(WEBHOOK_URL)
+    asyncio.create_task(start_aggregator(bot))
     print("✅ Webhook установлен")
 
 async def on_shutdown(app: web.Application):
