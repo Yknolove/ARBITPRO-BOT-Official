@@ -37,7 +37,7 @@ async def set_sell_price(message: Message, state: FSMContext):
     except ValueError:
         await message.answer("Введите число. Попробуйте снова:")
 
-@router.message(FilterStates.choosing_volume)
+@router.message(FilterStates.choosing_volume) 
 async def save_filter(message: Message, state: FSMContext):
     try:
         volume = float(message.text)
