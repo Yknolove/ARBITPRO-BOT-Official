@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-
+from handlers.referral import router as referral_router
+dp.include_router(referral_router)
 from handlers.default import router as default_router
 from handlers.filters import router as filters_router
 from handlers.calc import router as calc_router
