@@ -4,22 +4,21 @@ class RateFetcher:
     def __init__(self, session: aiohttp.ClientSession):
         self.session = session
 
-    async def fetch_binance(self) -> dict:
-        url = "https://api.binance.com/api/v3/ticker/bookTicker?symbol=USDTBUSD"
-        async with self.session.get(url) as r:
-            d = await r.json()
-            return {"buy": float(d["bidPrice"]), "sell": float(d["askPrice"])}
-
-    async def fetch_bybit(self) -> dict:
+    async def fetch_bybit(self):
         url = "https://api.bybit.com/v2/public/tickers?symbol=USDTUSD"
         async with self.session.get(url) as r:
-            d = await r.json()
-            t = d["result"][0]
-            return {"buy": float(t["bid_price"]), "sell": float(t["ask_price"])}
+            if r.status != 200:
+                text = await r.text()
+                print("❌ Ошибка Bybit:", r.status, text)
+                return {}
 
-    async def fetch_bitget(self) -> dict:
-        url = "https://api.bitget.com/api/spot/v1/market/ticker?symbol=usdt_usd"
-        async with self.session.get(url) as r:
-            d = await r.json()
-            t = d["data"]
-            return {"buy": float(t["buy"]), "sell": float(t["sell"])}
+            try:
+                d = await r.json()
+                return {"order": {
+                    "price": float(d["result"][0]["last_price"]),
+                    "volume": 100,  # 💡 Заглушка, если объёма нет
+                    "link": "https://www.bybit.com/en-US/trade/spot/USDT/USD"
+                }}
+            except Exception as e:
+                print("❌ Ошибка обработки JSON от Bybit:", e)
+                return {}
