@@ -2,7 +2,7 @@ import os
 import asyncio
 from aiohttp import web
 from dotenv import load_dotenv
-
+from handlers.calc import router as calc_router
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
