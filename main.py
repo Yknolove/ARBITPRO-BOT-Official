@@ -8,6 +8,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 from handlers.default import router as default_router
+from handlers.set_filter_trigger import router as set_filter_router
 from handlers.filters import router as filters_router
 from handlers.calc import router as calc_router
 from handlers.history import router as history_router
@@ -36,6 +37,7 @@ dp.include_router(history_router)
 dp.include_router(referral_router)
 dp.include_router(payment_router)
 dp.include_router(arbitrage_router)
+dp.include_router(set_filter_router)
 
 async def on_startup(app: web.Application):
     await bot.set_webhook(WEBHOOK_URL)
