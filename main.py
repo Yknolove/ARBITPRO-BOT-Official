@@ -7,14 +7,17 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
+# Роутеры
 from handlers.default import router as default_router
-from handlers.set_filter_trigger import router as set_filter_router
 from handlers.filters import router as filters_router
 from handlers.calc import router as calc_router
 from handlers.history import router as history_router
 from handlers.referral import router as referral_router
 from handlers.payment import router as payment_router
 from handlers.arbitrage_dynamic import router as arbitrage_router
+from handlers.set_filter_trigger import router as set_filter_router
+
+# Агрегатор
 from services.aggregator import start_aggregator
 
 load_dotenv()
@@ -22,14 +25,15 @@ load_dotenv()
 API_TOKEN = os.getenv("API_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 WEBHOOK_PATH = "/webhook"
-PORT = int(os.getenv("PORT", 8000))
+PORT = int(os.getenv("PORT", 8080))
 
 if not API_TOKEN or not WEBHOOK_URL:
-    raise RuntimeError("❗ Установите в окружении API_TOKEN и WEBHOOK_URL")
+    raise RuntimeError("❗ Установите API_TOKEN и WEBHOOK_URL в окружении")
 
-bot = Bot(token=API_TOKEN)
+bot = Bot(token=API_TOKEN, parse_mode="HTML")
 dp = Dispatcher(storage=MemoryStorage())
 
+# Роутеры
 dp.include_router(default_router)
 dp.include_router(filters_router)
 dp.include_router(calc_router)
@@ -39,6 +43,7 @@ dp.include_router(payment_router)
 dp.include_router(arbitrage_router)
 dp.include_router(set_filter_router)
 
+# Webhook запуск
 async def on_startup(app: web.Application):
     await bot.set_webhook(WEBHOOK_URL)
     asyncio.create_task(start_aggregator(bot))
@@ -49,6 +54,7 @@ async def on_shutdown(app: web.Application):
     await bot.session.close()
     print("⛔ Webhook отключён")
 
+# Сервер
 app = web.Application()
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
