@@ -2,12 +2,11 @@ import os
 import asyncio
 from aiohttp import web
 from dotenv import load_dotenv
-
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
-# Роутеры
+# Импорты роутеров
 from handlers.default import router as default_router
 from handlers.filters import router as filters_router
 from handlers.calc import router as calc_router
@@ -33,7 +32,7 @@ if not API_TOKEN or not WEBHOOK_URL:
 bot = Bot(token=API_TOKEN, parse_mode="HTML")
 dp = Dispatcher(storage=MemoryStorage())
 
-# Роутеры
+# Подключение роутеров
 dp.include_router(default_router)
 dp.include_router(filters_router)
 dp.include_router(calc_router)
@@ -43,7 +42,6 @@ dp.include_router(payment_router)
 dp.include_router(arbitrage_router)
 dp.include_router(set_filter_router)
 
-# Webhook запуск
 async def on_startup(app: web.Application):
     await bot.set_webhook(WEBHOOK_URL)
     asyncio.create_task(start_aggregator(bot))
@@ -54,7 +52,6 @@ async def on_shutdown(app: web.Application):
     await bot.session.close()
     print("⛔ Webhook отключён")
 
-# Сервер
 app = web.Application()
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
