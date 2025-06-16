@@ -26,7 +26,7 @@ back_menu = InlineKeyboardMarkup(inline_keyboard=[
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     await message.answer(
-        "👋 Добро пожаловать в <b>ArbitPRO</b> <code>(Free)</code>!
+        "👋 Добро пожаловать в "<b>ArbitPRO</b> <code>(Free)</code>!
 
 "
         "🔓 Доступные функции:
