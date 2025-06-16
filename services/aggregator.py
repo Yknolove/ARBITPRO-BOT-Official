@@ -9,9 +9,7 @@ async def start_aggregator(bot):
             async with aiohttp.ClientSession() as session:
                 rf = RateFetcher(session)
                 tickers = await rf.fetch_bybit()
-                print(f"🟢 Bybit вернул {len(tickers)} тикеров")
-
-                # Здесь можно вставить фильтрацию и уведомления
+                print(f"✅ Загружено {len(tickers)} тикеров с Bybit")
 
         except Exception as e:
             logging.error("❌ Ошибка в агрегаторе", exc_info=e)
