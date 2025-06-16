@@ -10,6 +10,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from handlers.default import router as default_router
 from handlers.filters import router as filters_router
 from handlers.calc import router as calc_router
+from handlers.history import router as history_router
 from services.aggregator import start_aggregator
 
 load_dotenv()
@@ -28,6 +29,7 @@ dp = Dispatcher(storage=MemoryStorage())
 dp.include_router(default_router)
 dp.include_router(filters_router)
 dp.include_router(calc_router)
+dp.include_router(history_router)
 
 async def on_startup(app: web.Application):
     await bot.set_webhook(WEBHOOK_URL)
@@ -46,5 +48,7 @@ app.on_shutdown.append(on_shutdown)
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 setup_application(app, dp, bot=bot)
 
+if __name__ == "__main__":
+    web.run_app(app, host="0.0.0.0", port=PORT)
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=PORT) 
