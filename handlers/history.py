@@ -34,7 +34,7 @@ async def show_history(message: Message):
         await message.answer("❗ У вас пока нет истории сделок.")
         return
 
-    text = "📈 <b>История сделок:</b>
+    text = "📈 <b>История сделок:</b>\n\n"
 
 "
     for i, record in enumerate(user_history[-10:], 1):
