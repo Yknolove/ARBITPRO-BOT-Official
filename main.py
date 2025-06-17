@@ -1,48 +1,46 @@
-import asyncio
 import logging
+import asyncio
+import aiohttp
 from aiogram import Bot, Dispatcher
-from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
-import os
+from os import getenv
 
 from handlers.default import router as default_router
 from handlers.filters import router as filters_router
-from handlers.history import router as history_router
 from handlers.calculator import router as calc_router
-from handlers.arbitrage_dynamic import router as arbitrage_router
-from handlers.set_filter_trigger import router as set_filter_router
+from handlers.history import router as history_router
+from handlers.referral import router as referral_router
+
 from services.aggregator import start_aggregator
+from services.notifier import notifier_worker
 
-API_TOKEN = os.getenv("API_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-WEBHOOK_PATH = "/webhook"
+logging.basicConfig(level=logging.INFO)
 
-if not API_TOKEN or not WEBHOOK_URL:
-    raise RuntimeError("❗ Установите в окружении API_TOKEN и WEBHOOK_URL")
+API_TOKEN = getenv("API_TOKEN")
+if not API_TOKEN:
+    raise RuntimeError("❗ Установите в окружении API_TOKEN")
 
-bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
+bot = Bot(token=API_TOKEN, parse_mode="HTML")
 dp = Dispatcher(storage=MemoryStorage())
 
 dp.include_router(default_router)
 dp.include_router(filters_router)
-dp.include_router(set_filter_router)
 dp.include_router(calc_router)
 dp.include_router(history_router)
-dp.include_router(arbitrage_router)
+dp.include_router(referral_router)
 
-app = web.Application()
-SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-setup_application(app, dp, bot=bot)
+async def start_bot():
+    session = aiohttp.ClientSession()
+    queue = asyncio.Queue()
 
-async def on_startup(app):
-    await bot.set_webhook(WEBHOOK_URL + WEBHOOK_PATH)
-    asyncio.create_task(start_aggregator(bot))
-    logging.info("🚀 Бот и агрегатор запущены")
+    asyncio.create_task(start_aggregator(queue, session))
+    asyncio.create_task(notifier_worker(queue, bot))
 
-app.on_startup.append(on_startup)
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+    asyncio.run(start_bot())
