@@ -9,5 +9,6 @@ class P2PFetcher:
         payload = {"asset":"USDT","fiat":"UAH","tradeType":"BUY","page":1,"rows":5}
         async with self.session.post(url, json=payload) as r:
             d = await r.json()
-            prices = [float(x["adv"]["price"]) for x in d["data"]]
+            data = d.get("data", [])
+            prices = [float(x["adv"]["price"]) for x in data if "adv" in x and "price" in x["adv"]]
             return min(prices) if prices else None
