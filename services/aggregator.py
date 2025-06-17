@@ -5,7 +5,7 @@ import json
 from aiogram import Bot
 from services.rate_fetcher import RateFetcher
 
-API_TOKEN = "YOUR_API_TOKEN"
+API_TOKEN = "8131766932:AAFPfxgWtoY7fejhp5dofLsz0q7701L4GAI"
 FILTERS_FILE = "filters.json"
 
 bot = Bot(token=API_TOKEN, parse_mode="HTML")
