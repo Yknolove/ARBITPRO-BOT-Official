@@ -3,14 +3,13 @@ class RateFetcher:
         self.session = session
 
     async def fetch_bybit(self):
-        url = "https://api.bybit.com/v2/public/tickers"
+        url = "https://api.bybit.com/v2/public/tickers"  # ← убран ;
         async with self.session.get(url) as resp:
-            try:
-                data = await resp.json()
-            except Exception as e:
+            if resp.content_type != "application/json":
                 text = await resp.text()
-                raise Exception(f"Ошибка парсинга JSON: {e}, ответ: {text}")
+                raise Exception(f"❌ Не JSON ответ: {resp.content_type}, текст: {text}")
 
+            data = await resp.json()
             filtered = []
             for item in data.get("result", []):
                 try:
