@@ -1,0 +1,9 @@
+{
+  "777000": {
+    "buy_price": 10000,
+    "sell_price": 0,
+    "volume": 100,
+    "chat_id": 777000,
+    "exchange": "bybit"
+  }
+}
