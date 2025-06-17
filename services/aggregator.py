@@ -1,10 +1,12 @@
+# services/aggregator.py
+
 import json
 import logging
 import aiohttp
 from aiogram import Bot
-from config import API_TOKEN
-from utils.filter_engine import apply_filters
-from utils.const import FILTERS_FILE
+from config import API_TOKEN  # теперь работает!
+from services.filter_engine import apply_filters
+from services.const import FILTERS_FILE
 
 async def fetch_bybit(session):
     url = "https://api.bybit.com/v5/market/tickers?category=spot"
@@ -30,13 +32,13 @@ async def start_aggregator(queue, session):
                 logging.warning("❗ Не удалось загрузить фильтры", exc_info=e)
                 filters = {}
 
-            orders = apply_filters(tickers, filters)
+            orders = apply_filters(tickers, FILTERS_FILE)
 
             for order in orders:
                 symbol = order["symbol"]
-                buy = order["buy"]
-                sell = order["sell"]
-                volume = order["volume"]
+                buy = order.get("buy", 0)
+                sell = order.get("sell", 0)
+                volume = order.get("volume", 0)
                 chat_id = order["chat_id"]
 
                 text = (
