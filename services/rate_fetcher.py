@@ -5,15 +5,12 @@ class RateFetcher:
         self.session = session
 
     async def fetch_bybit(self):
-        url = "https://api.bybit.com/v5/market/tickers?category=spot"  # 📌 исправленный эндпойнт
-
+        url = "https://api.bybit.com/v5/market/tickers?category=spot"
         async with self.session.get(url) as resp:
             if resp.content_type != "application/json":
                 text = await resp.text()
                 raise Exception(f"❌ Не JSON ответ: {resp.content_type}, текст: {text}")
-
             data = await resp.json()
-            # Извлекаем нужный массив тикеров
             tickers = data.get("result", {}).get("list", [])
             filtered = []
             for item in tickers:
