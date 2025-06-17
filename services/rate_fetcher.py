@@ -3,7 +3,7 @@ class RateFetcher:
         self.session = session
 
     async def fetch_bybit(self):
-        url = "https://api.bybit.com/v2/public/tickers"  # ← убран ;
+        url = "url = "https://api.bybit.com/v5/market/tickers?category=spot"  # ← убран ;
         async with self.session.get(url) as resp:
             if resp.content_type != "application/json":
                 text = await resp.text()
