@@ -1,10 +1,6 @@
+# config.py
 import os
 
-API_TOKEN = os.getenv("API_TOKEN")
-if not API_TOKEN:
-    raise RuntimeError("❗ Не задана переменная окружения API_TOKEN")
-
-# Если polling, PORT не нужен
-# Если webhook: uncomment below
-# WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-# WEBHOOK_PATH = "/webhook"
+API_TOKEN = os.getenv("8131766932:AAFPfxgWtoY7fejhp5dofLsz0q7701L4GAI")
+WEBHOOK_URL = os.getenv("https://arbitpro-bot-official.onrender.com/webhook")
+PORT = int(os.getenv("PORT", 10000))
