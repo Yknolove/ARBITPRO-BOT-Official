@@ -1,60 +1,58 @@
 import asyncio
-import aiohttp
 import json
-import os
 import logging
 from services.rate_fetcher import RateFetcher
 
 FILTERS_FILE = "filters.json"
 
-async def start_aggregator(bot):
-    logging.info("🟢 Агрегатор запущен")
-    while True:
-        try:
-            async with aiohttp.ClientSession() as session:
-                rf = RateFetcher(session)
+async def start_aggregator(queue: asyncio.Queue, session):
+    try:
+        rf = RateFetcher(session)
+        while True:
+            try:
                 tickers = await rf.fetch_bybit()
                 logging.info(f"🟢 Bybit вернул {len(tickers)} тикеров")
-
-                if not os.path.exists(FILTERS_FILE):
-                    with open(FILTERS_FILE, "w") as f:
-                        json.dump({}, f)
 
                 try:
                     with open(FILTERS_FILE, "r") as f:
                         filters = json.load(f)
-                except Exception as fe:
-                    logging.error("❗ Ошибка загрузки фильтров", exc_info=fe)
+                except Exception:
                     filters = {}
+                    logging.warning("⚠️ Не удалось загрузить filters.json")
 
-                for chat_id, fdata in filters.items():
-                    try:
-                        buy_limit = float(fdata.get("buy_price", 0))
-                        sell_limit = float(fdata.get("sell_price", 1000000))
-                        vol_limit = float(fdata.get("volume", 1000000))
-                    except:
-                        continue
+                for ticker in tickers:
+                    symbol = ticker["symbol"]
+                    price = float(ticker["lastPrice"])
+                    volume = float(ticker["volume"])
 
-                    for t in tickers:
-                        try:
-                            price = float(t["price"])
-                            vol = float(t["volume"])
-                            if price <= buy_limit and price >= sell_limit and vol <= vol_limit:
-                                msg = (
-                                    f"💰 <b>Найдена сделка</b>\n"
-                                    f"<b>Тикер:</b> {t['symbol']}\n"
-                                    f"<b>Цена:</b> {price}$\n"
-                                    f"<b>Объём:</b> {vol}$"
-                                )
-                                try:
-                                    await bot.send_message(chat_id=int(chat_id), text=msg, parse_mode="HTML")
-                                except Exception as send_err:
-                                    logging.error(f"❌ Ошибка отправки: {send_err}")
-                        except:
+                    for user_id, user_filter in filters.items():
+                        if user_filter["exchange"] != "bybit":
                             continue
 
-        except Exception as e:
-            logging.error("💥 Ошибка в агрегаторе", exc_info=e)
+                        if (price <= user_filter["buy_price"] and
+                            price >= user_filter["sell_price"] and
+                            volume <= user_filter["volume"]):
+                            
+                            msg = (
+                                f"📢 <b>Сделка найдена!</b>\n\n"
+                                f"Биржа: Bybit\n"
+                                f"Монета: {symbol}\n"
+                                f"Цена: {price}\n"
+                                f"Объём: {volume}\n"
+                                f"🔗 <a href='https://www.bybit.com/trade/spot/{symbol}'>Перейти к ордеру</a>"
+                            )
 
-        logging.info("🔁 Цикл агрегатора завершён, спим 15 секунд")
-        await asyncio.sleep(15)
+                            await queue.put({
+                                "chat_id": int(user_id),
+                                "message": msg
+                            })
+
+                logging.info("🔁 Цикл агрегатора завершён, спим 15 секунд")
+                await asyncio.sleep(15)
+
+            except Exception as e:
+                logging.error("💥 Ошибка агрегатора", exc_info=e)
+                await asyncio.sleep(10)
+
+    except Exception as e:
+        logging.critical("💥 Критическая ошибка агрегатора", exc_info=e)
