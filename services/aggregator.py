@@ -1,16 +1,17 @@
+import aiohttp
 import asyncio
-import json
 import logging
+import json
 from aiogram import Bot
-from config import API_TOKEN
 from services.rate_fetcher import RateFetcher
 
-bot = Bot(token=API_TOKEN)
+API_TOKEN = "YOUR_API_TOKEN"
 FILTERS_FILE = "filters.json"
 
+bot = Bot(token=API_TOKEN, parse_mode="HTML")
+
 async def start_aggregator():
-    from aiohttp import ClientSession
-    async with ClientSession() as session:
+    async with aiohttp.ClientSession() as session:
         rf = RateFetcher(session)
 
         while True:
@@ -21,41 +22,39 @@ async def start_aggregator():
                 try:
                     with open(FILTERS_FILE, "r") as f:
                         filters = json.load(f)
-                except Exception as e:
-                    logging.warning("❗ Не удалось загрузить фильтры", exc_info=e)
+                except Exception:
                     filters = {}
+                    logging.warning("❗ Не удалось загрузить фильтры")
 
-                for chat_id, flt in filters.items():
-                    for t in tickers:
-                        symbol = t["symbol"]
-                        ask = float(t.get("askPrice", 0) or 0)
-                        bid = float(t.get("bidPrice", 0) or 0)
+                for ticker in tickers:
+                    symbol = ticker["symbol"]
+                    ask = float(ticker.get("askPrice") or ticker.get("ask") or 0)
+                    bid = float(ticker.get("bidPrice") or ticker.get("bid") or 0)
 
-                        if ask <= flt["buy_price"] and bid >= flt["sell_price"]:
-                            order = {
-                                "symbol": symbol,
-                                "buy": ask,
-                                "sell": bid,
-                                "volume": flt["volume"],
-                                "chat_id": flt["chat_id"]
-                            }
-                            logging.info(f"✅ Найден подходящий ордер: {order}")
+                    for user_id, f_data in filters.items():
+                        if f_data["exchange"] != "bybit":
+                            continue
+
+                        if ask <= f_data["buy_price"] and bid >= f_data["sell_price"]:
+                            logging.info(f"✅ Найден подходящий ордер: {symbol}")
+
                             try:
                                 await bot.send_message(
-                                    chat_id=order["chat_id"],
-                                    text=f"📢 Найден арбитраж по <b>{order['symbol']}</b>:
+                                    chat_id=int(user_id),
+                                    text=(
+                                        f"📢 Найден арбитраж по <b>{symbol}</b>:
 "
-                                         f"Покупка: {order['buy']}
+                                        f"💰 Купить: <code>{ask}</code>
 "
-                                         f"Продажа: {order['sell']}",
-                                    parse_mode="HTML"
+                                        f"📤 Продать: <code>{bid}</code>
+"
+                                        f"📦 Объем: {f_data['volume']}$"
+                                    )
                                 )
                             except Exception as e:
-                                logging.error(f"❌ Ошибка отправки уведомления: {e}")
-
-                logging.info("🔁 Цикл агрегатора завершён, спим 15 секунд")
-                await asyncio.sleep(15)
-
+                                logging.error(f"❌ Ошибка при отправке сообщения: {e}")
             except Exception as e:
                 logging.error("💥 Критическая ошибка агрегатора", exc_info=e)
-                await asyncio.sleep(30)
+
+            logging.info("🔁 Цикл агрегатора завершён, спим 15 секунд")
+            await asyncio.sleep(15)
