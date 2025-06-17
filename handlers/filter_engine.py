@@ -4,7 +4,7 @@ def apply_filters(tickers, filters_file):
     try:
         with open(filters_file, "r") as f:
             filters = json.load(f)
-    except:
+    except Exception:
         filters = {}
 
     results = []
@@ -15,9 +15,10 @@ def apply_filters(tickers, filters_file):
         exchange = f.get("exchange", "bybit")
 
         for t in tickers:
+            # Исправленная логика фильтрации
             if (
                 t["price"] <= buy_limit and
-                t["price"] >= sell_limit and
+                t.get("sell_price", t["price"]) >= sell_limit and
                 t["volume"] <= vol_limit
             ):
                 results.append({
