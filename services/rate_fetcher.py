@@ -3,7 +3,7 @@ class RateFetcher:
         self.session = session
 
     async def fetch_bybit(self):
-        url = "url = "https://api.bybit.com/v5/market/tickers?category=spot"  # ← убран ;
+        url = "https://api.bybit.com/v5/market/tickers?category=spot"
         async with self.session.get(url) as resp:
             if resp.content_type != "application/json":
                 text = await resp.text()
@@ -11,11 +11,11 @@ class RateFetcher:
 
             data = await resp.json()
             filtered = []
-            for item in data.get("result", []):
+            for item in data.get("result", {}).get("list", []):
                 try:
                     symbol = item.get("symbol", "")
-                    price = float(item.get("last_price", 0))
-                    volume = float(item.get("turnover_24h", 0))
+                    price = float(item.get("lastPrice", 0))
+                    volume = float(item.get("turnover24h", 0))
                     filtered.append({"symbol": symbol, "price": price, "volume": volume})
                 except:
                     continue
