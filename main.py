@@ -3,6 +3,11 @@
 import logging
 import asyncio
 import aiohttp
+
+from os import getenv
+from dotenv import load_dotenv
+load_dotenv()  # загрузит все переменные из .env
+
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
