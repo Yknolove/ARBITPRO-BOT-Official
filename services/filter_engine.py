@@ -1,0 +1,28 @@
+import json
+
+def apply_filters(tickers, filters_file):
+    try:
+        with open(filters_file, "r") as f:
+            filters = json.load(f)
+    except:
+        filters = {}
+
+    results = []
+    for chat_id, f in filters.items():
+        buy_limit = float(f.get("buy_price", 0))
+        sell_limit = float(f.get("sell_price", 999999))
+        vol_limit = float(f.get("volume", 100))
+        exchange = f.get("exchange", "bybit")
+
+        for t in tickers:
+            if (
+                t["price"] <= buy_limit and
+                t["price"] >= sell_limit and
+                t["volume"] <= vol_limit
+            ):
+                results.append({
+                    **t,
+                    "chat_id": chat_id,
+                    "exchange": exchange
+                })
+    return results
