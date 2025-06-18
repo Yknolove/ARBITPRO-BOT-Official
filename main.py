@@ -1,49 +1,64 @@
-# main.py
-
-import logging
 import asyncio
-import aiohttp
-
-from os import getenv
-from dotenv import load_dotenv
-load_dotenv()  # загрузит все переменные из .env
+import logging
+import os
 
 from aiogram import Bot, Dispatcher
+from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.webhook.aiohttp_server import setup_application, SimpleRequestHandler
 
-from handlers.default import router as default_router
-from handlers.filters import router as filters_router
-from handlers.calculator import router as calc_router
-from handlers.history import router as history_router
-from handlers.referral import router as referral_router
+from aiohttp import web
+from dotenv import load_dotenv
 
+from handlers import default, arbitrage_dynamic, calculator, history, settings
 from services.aggregator import start_aggregator
-from services.notifier import notifier_worker
-from config import API_TOKEN
+
+load_dotenv()
+
+API_TOKEN = os.getenv("API_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+WEBHOOK_PATH = "/webhook"
+WEBAPP_PORT = int(os.getenv("PORT", 8000))
+
+if not API_TOKEN or not WEBHOOK_URL:
+    raise RuntimeError("❗ Установите в окружении API_TOKEN и WEBHOOK_URL")
 
 logging.basicConfig(level=logging.INFO)
-
-bot = Bot(token=API_TOKEN, parse_mode="HTML")
+bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher(storage=MemoryStorage())
 
-dp.include_router(default_router)
-dp.include_router(filters_router)
-dp.include_router(calc_router)
-dp.include_router(history_router)
-dp.include_router(referral_router)
+# Регистрация роутеров
+dp.include_routers(
+    default.router,
+    arbitrage_dynamic.router,
+    calculator.router,
+    history.router,
+    settings.router
+)
 
-async def start_bot():
-    session = aiohttp.ClientSession()
+async def on_startup(app):
+    await bot.set_webhook(f"{WEBHOOK_URL}{WEBHOOK_PATH}")
+    logging.info("✅ Webhook установлен")
+
+async def on_shutdown(app):
+    await bot.delete_webhook()
+    logging.info("🛑 Webhook удалён")
+
+async def main():
+    app = web.Application()
+    app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
+
+    # Запуск фоновой задачи агрегатора
     queue = asyncio.Queue()
+    session = aiohttp.ClientSession()
+    asyncio.create_task(start_aggregator(queue, session, bot))
 
-    asyncio.create_task(start_aggregator(queue, session))
-    asyncio.create_task(notifier_worker(queue, bot))
+    setup_application(app, dp, bot=bot, handle_signals=False)
+    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 
-    try:
-        await bot.delete_webhook(drop_pending_updates=True)
-        await dp.start_polling(bot)
-    finally:
-        await session.close()
+    logging.info(f"🚀 Запуск сервера на порту {WEBAPP_PORT}")
+    web.run_app(app, port=WEBAPP_PORT)
 
 if __name__ == "__main__":
-    asyncio.run(start_bot())
+    asyncio.run(main())
