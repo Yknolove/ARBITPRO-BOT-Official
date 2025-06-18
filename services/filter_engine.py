@@ -1,10 +1,9 @@
-import json
-
 def apply_filters(tickers, filters_file):
+    import logging
     try:
         with open(filters_file, "r") as f:
             filters = json.load(f)
-    except:
+    except Exception:
         filters = {}
 
     results = []
@@ -15,10 +14,14 @@ def apply_filters(tickers, filters_file):
         exchange = f.get("exchange", "bybit")
 
         for t in tickers:
+            # Debug print
+            if "price" not in t:
+                logging.warning(f"[filter_engine] Нет ключа 'price' в: {t}")
+                continue
             if (
                 t["price"] <= buy_limit and
-                t["price"] >= sell_limit and
-                t["volume"] <= vol_limit
+                t.get("sell_price", t["price"]) >= sell_limit and
+                t.get("volume", 0) <= vol_limit
             ):
                 results.append({
                     **t,
