@@ -1,10 +1,9 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 import json
+from config import FILTERS_FILE
 
 router = Router()
-
-FILTERS_FILE = "filters.json"
 
 @router.callback_query(F.data == "arbitrage")
 async def show_arbitrage(call: CallbackQuery):
