@@ -36,7 +36,10 @@ async def start_aggregator(session: ClientSession, bot):
                             "price": price,
                             "sell_price": sell,
                         })
-                    except Exception:
+                    except Exception as e:
+                        logging.debug(
+                            "Failed to parse ticker item %s: %s", item, e
+                        )
                         continue
                 logging.info(f"🟢 Bybit вернул {len(tickers)} тикеров")
 
