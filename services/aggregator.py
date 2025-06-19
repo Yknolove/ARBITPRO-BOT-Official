@@ -3,6 +3,13 @@ import asyncio
 from aiohttp import ClientSession
 from config import FILTERS_FILE
 from services.filter_engine import apply_filters
+from services.p2p_fetcher import P2PFetcher
+
+
+async def fetch_p2p_orders(session: ClientSession):
+    """Fetch buy/sell orders from supported P2P exchanges."""
+    fetcher = P2PFetcher(session)
+    return await fetcher.fetch_orders()
 
 
 async def start_aggregator(session: ClientSession, bot):
@@ -10,41 +17,10 @@ async def start_aggregator(session: ClientSession, bot):
 
     while True:
         try:
-            async with session.get("https://api.bybit.com/v5/market/tickers?category=spot") as resp:
-                data = await resp.json()
-                raw = data.get("result", {}).get("list", [])
-                tickers = []
-                for item in raw:
-                    try:
-                        symbol = item.get("symbol", "")
-                        buy = float(item.get("bid1Price", item.get("lastPrice", 0)))
-                        sell = float(item.get("ask1Price", item.get("lastPrice", 0)))
-                        # Derive volume from the best bid if possible; fall back
-                        # to Bybit's 24h volume metric otherwise.
-                        bid_price = float(item.get("bid1Price", 0))
-                        bid_size = float(item.get("bid1Size", 0))
-                        if bid_price and bid_size:
-                            volume = bid_price * bid_size
-                        else:
-                            volume = float(item.get("volume24h", 0))
-                        price = float(item.get("lastPrice", 0))
-                        tickers.append({
-                            "symbol": symbol,
-                            "buy": buy,
-                            "sell": sell,
-                            "volume": volume,
-                            "price": price,
-                            "sell_price": sell,
-                        })
-                    except Exception as e:
-                        logging.debug(
-                            "Failed to parse ticker item %s: %s", item, e
-                        )
-                        continue
-                logging.info(f"🟢 Bybit вернул {len(tickers)} тикеров")
-
+            tickers = await fetch_p2p_orders(session)
+            logging.info(f"🟢 P2P вернул {len(tickers)} ордеров")
         except Exception as e:
-            logging.error("💥 Ошибка при получении данных с Bybit", exc_info=e)
+            logging.error("💥 Ошибка при получении данных P2P", exc_info=e)
             await asyncio.sleep(15)
             continue
 
@@ -56,12 +32,14 @@ async def start_aggregator(session: ClientSession, bot):
             buy = order["buy"]
             sell = order["sell"]
             volume = order["volume"]
+            url = order.get("url")
 
             text = (
                 f"📢 Найден арбитраж по <b>{symbol}</b>:\n"
                 f"💰 Покупка: {buy}\n"
                 f"💵 Продажа: {sell}\n"
                 f"📦 Объём: {volume}"
+                + (f"\n🔗 <a href='{url}'>Открыть ордер</a>" if url else "")
             )
 
             try:
