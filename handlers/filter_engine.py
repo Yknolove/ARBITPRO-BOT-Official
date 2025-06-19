@@ -11,8 +11,10 @@ def apply_filters(tickers, filters_file):
     for chat_id, f in filters.items():
         buy_limit = float(f.get("buy_price", 0))
         sell_limit = float(f.get("sell_price", 999999))
-        # "volume" represents the trade size metric used by the aggregator
-        # (best bid size or 24h volume). Compare user limit to this value.
+        # "volume" represents the trade size derived from the best bid
+        # (bid1Price * bid1Size). If that is not available, the aggregator
+        # falls back to the ticker's 24h volume. User limits compare
+        # against this value.
         vol_limit = float(f.get("volume", 100))
         exchange = f.get("exchange", "bybit")
 
