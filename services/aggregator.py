@@ -19,15 +19,14 @@ async def start_aggregator(session: ClientSession, bot):
                         symbol = item.get("symbol", "")
                         buy = float(item.get("bid1Price", item.get("lastPrice", 0)))
                         sell = float(item.get("ask1Price", item.get("lastPrice", 0)))
-                        # Bybit returns turnover24h which represents trade value in
-                        # USD. For single trades we want the actual amount of
-                        # coins traded, so try to use volume24h if present.
-                        volume = float(item.get("volume24h", 0))
-                        if not volume:
-                            # Fall back to the size of the best bid if provided
-                            bid_price = float(item.get("bid1Price", 0))
-                            bid_size = float(item.get("bid1Size", 0))
+                        # Derive volume from the best bid if possible; fall back
+                        # to Bybit's 24h volume metric otherwise.
+                        bid_price = float(item.get("bid1Price", 0))
+                        bid_size = float(item.get("bid1Size", 0))
+                        if bid_price and bid_size:
                             volume = bid_price * bid_size
+                        else:
+                            volume = float(item.get("volume24h", 0))
                         price = float(item.get("lastPrice", 0))
                         tickers.append({
                             "symbol": symbol,
