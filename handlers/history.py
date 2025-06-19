@@ -12,7 +12,7 @@ def is_pro_user(user_id: int) -> bool:
         return False
     with open(PRO_USERS_FILE, "r") as f:
         data = json.load(f)
-    return str(user_id) in data
+    return str(user_id) in data.get("users", [])
 
 @router.message(F.text == "/history")
 async def show_history(message: Message):
