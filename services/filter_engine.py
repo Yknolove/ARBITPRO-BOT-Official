@@ -1,5 +1,6 @@
 def apply_filters(tickers, filters_file):
     import logging
+    import json
     try:
         with open(filters_file, "r") as f:
             filters = json.load(f)
