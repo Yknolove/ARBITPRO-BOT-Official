@@ -13,7 +13,7 @@ async def show_arbitrage(call: CallbackQuery):
         with open(FILTERS_FILE, "r") as f:
             filters = json.load(f)
         user_filter = filters.get(user_id)
-    except:
+    except (FileNotFoundError, json.JSONDecodeError):
         user_filter = None
 
     if not user_filter:

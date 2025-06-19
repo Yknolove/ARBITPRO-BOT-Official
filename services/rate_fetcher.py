@@ -19,6 +19,6 @@ class RateFetcher:
                     price = float(item.get("lastPrice", 0))
                     volume = float(item.get("turnover24h", 0))
                     filtered.append({"symbol": symbol, "price": price, "volume": volume})
-                except:
+                except (ValueError, TypeError):
                     continue
             return filtered

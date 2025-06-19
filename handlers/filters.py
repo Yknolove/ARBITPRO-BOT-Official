@@ -54,7 +54,7 @@ async def save_filter(message: Message, state: FSMContext):
         try:
             with open(FILTERS_PATH, "r") as f:
                 all_filters = json.load(f)
-        except:
+        except (FileNotFoundError, json.JSONDecodeError):
             all_filters = {}
 
         all_filters[str(message.chat.id)] = data
