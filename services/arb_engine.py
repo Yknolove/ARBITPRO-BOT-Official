@@ -9,7 +9,8 @@ class ArbEngine:
         keys = list(rates)
         for i in range(len(keys)):
             for j in range(len(keys)):
-                if i==j: continue
+                if i == j:
+                    continue
                 A, B = keys[i], keys[j]
                 ask = rates[A]["sell"]
                 bid = rates[B]["buy"]
