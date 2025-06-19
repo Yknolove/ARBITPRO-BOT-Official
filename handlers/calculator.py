@@ -47,7 +47,7 @@ async def calculate_profit(message: Message):
             f"💰 <b>Чистая прибыль:</b> {net:.2f}$",
             parse_mode="HTML"
         )
-    except Exception as e:
-        await message.answer("⚠️ Неверный формат. Повторите ещё раз.")
-    except:
+    except ValueError:
         await message.answer("❌ Введите корректное число.")
+    except Exception:
+        await message.answer("⚠️ Неверный формат. Повторите ещё раз.")
