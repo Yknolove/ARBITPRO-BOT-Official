@@ -1,4 +1,3 @@
-import json
 import logging
 import asyncio
 from aiohttp import ClientSession
@@ -6,14 +5,32 @@ from config import FILTERS_FILE
 from services.filter_engine import apply_filters
 
 
-async def start_aggregator(queue, session: ClientSession, bot):
+async def start_aggregator(session: ClientSession, bot):
     logging.info("🟢 Агрегатор запущен")
 
     while True:
         try:
             async with session.get("https://api.bybit.com/v5/market/tickers?category=spot") as resp:
                 data = await resp.json()
-                tickers = data.get("result", {}).get("list", [])
+                raw = data.get("result", {}).get("list", [])
+                tickers = []
+                for item in raw:
+                    try:
+                        symbol = item.get("symbol", "")
+                        buy = float(item.get("bid1Price", item.get("lastPrice", 0)))
+                        sell = float(item.get("ask1Price", item.get("lastPrice", 0)))
+                        volume = float(item.get("turnover24h", 0))
+                        price = float(item.get("lastPrice", 0))
+                        tickers.append({
+                            "symbol": symbol,
+                            "buy": buy,
+                            "sell": sell,
+                            "volume": volume,
+                            "price": price,
+                            "sell_price": sell,
+                        })
+                    except Exception:
+                        continue
                 logging.info(f"🟢 Bybit вернул {len(tickers)} тикеров")
 
         except Exception as e:
@@ -21,14 +38,7 @@ async def start_aggregator(queue, session: ClientSession, bot):
             await asyncio.sleep(15)
             continue
 
-        try:
-            with open(FILTERS_FILE, "r") as f:
-                filters = json.load(f)
-        except Exception as e:
-            logging.warning("❗ Не удалось загрузить фильтры", exc_info=e)
-            filters = {}
-
-        orders = apply_filters(tickers, filters)
+        orders = apply_filters(tickers, FILTERS_FILE)
 
         for order in orders:
             chat_id = order["chat_id"]

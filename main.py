@@ -34,8 +34,7 @@ async def main():
     dp.include_router(history.router)
 
     session = aiohttp.ClientSession()
-    queue = asyncio.Queue()
-    asyncio.create_task(start_aggregator(queue, session, bot))
+    asyncio.create_task(start_aggregator(session, bot))
 
     async def handle_webhook(request):
         update = await request.json()
