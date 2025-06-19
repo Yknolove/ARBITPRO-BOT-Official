@@ -17,19 +17,18 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-3. **Configure environment variables** (or create a `.env` file):
+3. **Configure environment variables** by copying `.env.example` to `.env` and
+   filling in your real values:
+
+```bash
+cp .env.example .env
+```
+
+Environment variables in `.env`:
 
 - `API_TOKEN` – Telegram bot token
-- `WEBHOOK_URL` – public HTTPS URL for Telegram webhooks (`https://<your-host>/webhook`)
+- `WEBHOOK_URL` – public HTTPS URL for Telegram webhooks
 - `PORT` – port to run the web server (default: `10000`)
-
-Example `.env`:
-
-```env
-API_TOKEN=<your-token>
-WEBHOOK_URL=https://example.com/webhook
-PORT=10000
-```
 
 4. **Run the bot**:
 
