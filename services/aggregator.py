@@ -5,6 +5,37 @@ from config import FILTERS_FILE
 from services.filter_engine import apply_filters
 
 
+def parse_tickers(raw):
+    """Convert raw API ticker data into normalized dictionaries."""
+    tickers = []
+    for item in raw:
+        try:
+            symbol = item.get("symbol", "")
+            buy = float(item.get("bid1Price", item.get("lastPrice", 0)))
+            sell = float(item.get("ask1Price", item.get("lastPrice", 0)))
+
+            bid_price = float(item.get("bid1Price", 0))
+            bid_size = float(item.get("bid1Size", 0))
+            if bid_price and bid_size:
+                volume = bid_price * bid_size
+            else:
+                volume = float(item.get("volume24h", 0))
+
+            price = float(item.get("lastPrice", 0))
+
+            tickers.append({
+                "symbol": symbol,
+                "buy": buy,
+                "sell": sell,
+                "volume": volume,
+                "price": price,
+                "sell_price": sell,
+            })
+        except Exception:
+            continue
+    return tickers
+
+
 async def start_aggregator(session: ClientSession, bot):
     logging.info("🟢 Агрегатор запущен")
 
@@ -13,31 +44,7 @@ async def start_aggregator(session: ClientSession, bot):
             async with session.get("https://api.bybit.com/v5/market/tickers?category=spot") as resp:
                 data = await resp.json()
                 raw = data.get("result", {}).get("list", [])
-                tickers = []
-                for item in raw:
-                    try:
-                        symbol = item.get("symbol", "")
-                        buy = float(item.get("bid1Price", item.get("lastPrice", 0)))
-                        sell = float(item.get("ask1Price", item.get("lastPrice", 0)))
-                        # Derive volume from the best bid if possible; fall back
-                        # to Bybit's 24h volume metric otherwise.
-                        bid_price = float(item.get("bid1Price", 0))
-                        bid_size = float(item.get("bid1Size", 0))
-                        if bid_price and bid_size:
-                            volume = bid_price * bid_size
-                        else:
-                            volume = float(item.get("volume24h", 0))
-                        price = float(item.get("lastPrice", 0))
-                        tickers.append({
-                            "symbol": symbol,
-                            "buy": buy,
-                            "sell": sell,
-                            "volume": volume,
-                            "price": price,
-                            "sell_price": sell,
-                        })
-                    except Exception:
-                        continue
+                tickers = parse_tickers(raw)
                 logging.info(f"🟢 Bybit вернул {len(tickers)} тикеров")
 
         except Exception as e:
