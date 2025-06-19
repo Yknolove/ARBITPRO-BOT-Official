@@ -1,5 +1,9 @@
+import json
+import logging
+
+
 def apply_filters(tickers, filters_file):
-    import logging
+    """Load user filters from ``filters_file`` and apply them to ``tickers``."""
     try:
         with open(filters_file, "r") as f:
             filters = json.load(f)
