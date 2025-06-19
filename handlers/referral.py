@@ -1,7 +1,6 @@
 import json
 from aiogram import Router, F
 from aiogram.types import Message
-from datetime import datetime, timedelta
 
 router = Router()
 REF_FILE = "referrals.json"
