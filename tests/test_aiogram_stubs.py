@@ -25,3 +25,12 @@ def test_fsm_state_import():
     module = importlib.import_module('aiogram.fsm.state')
     assert hasattr(module, 'State')
     assert hasattr(module, 'StatesGroup')
+
+
+def test_f_filters():
+    from aiogram import F
+
+    assert hasattr(F, 'text')
+    assert hasattr(F, 'data')
+    assert hasattr(F.text, 'startswith')
+    assert hasattr(F.text, 'regexp')

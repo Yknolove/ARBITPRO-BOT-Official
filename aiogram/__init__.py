@@ -9,12 +9,19 @@ class Router:
             return func
         return decorator
 
-class DummyTextFilter:
+class DummyFilter:
     def __eq__(self, other):
         return False
 
+    def startswith(self, _):
+        return self
+
+    def regexp(self, _):
+        return self
+
 class F:
-    text = DummyTextFilter()
+    text = DummyFilter()
+    data = DummyFilter()
 
 
 class Bot:
