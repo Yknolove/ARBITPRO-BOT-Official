@@ -40,6 +40,8 @@ The bot will start the aggregator and listen for Telegram updates on the specifi
 
 ## Running Tests
 
+Tests require the `aiohttp`, `aiogram`, and `pytest-asyncio` packages. Install them with `pip install -r requirements-dev.txt`.
+
 Execute the test suite with:
 
 ```bash
